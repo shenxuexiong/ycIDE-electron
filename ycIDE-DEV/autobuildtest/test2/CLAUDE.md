@@ -192,9 +192,9 @@ JSON，结构如下（字段缺失有默认值，解析器容错很好）：
 
 ## 5. 编译与运行
 
-### 5.1 唯一的编译方式：直接调 CLI
+### 5.1 编译方式
 
-**没有 `.bat` 包装脚本，直接用 node 调 CLI**（无 `pause` 阻塞、无代码页乱码，最适合被自动化脚本 / AI 工具调用）：
+**AI / 自动化请直接调 CLI**（无 `pause` 阻塞、无代码页乱码，最省事）：
 
 ```bash
 node W:/OpenClaw/ycIDE-electron/ycIDE-DEV/out/main/cli.js build "<项目目录或父目录>" [参数]
@@ -206,6 +206,18 @@ node W:/OpenClaw/ycIDE-electron/ycIDE-DEV/out/main/cli.js build "<项目目录�
 - 前置依赖：Zig 工具链需放在 `W:/OpenClaw/ycIDE-electron/ycIDE-DEV/compiler/zig/zig.exe`
 - **打包后的 IDE 本体也支持**：`ycIDE.exe --autobuild "<目录>" [参数]`
   （输出以日志文件兜底，因为 Windows 上 Electron 属 GUI 子系统，stdout 可能不可见）
+
+**给人用的一键 `.bat`**（都在 `ycIDE-DEV/` 根目录，双击即可；结尾有 `pause`，
+且会在 `cli.js` 缺失或比 `src/main/*.ts` 旧时自动 `npm run build`）：
+
+| 脚本 | 作用 |
+|---|---|
+| `run.bat` | 打开 IDE（dev 模式）。顺带检查 Node ≥ 22 / `node_modules` / Electron 二进制（缺失自动走 npmmirror 补装）/ Zig 工具链 |
+| `autobuildtest.bat` | 固定编译 `autobuildtest/`（含 `test1` 的 4 个示例项目），默认等价于 `--run`；日志落 `debug_logs/autobuildtest.log` |
+| `autobuild.bat` | 通用版：把**任意目录**拖到它上面，或双击后输入路径；其余参数原样透传给 CLI |
+
+> `.bat` 内部**只用 ASCII**（cmd.exe 按本机 OEM 代码页解析 `.bat`，写 UTF-8 中文会乱码）。
+> 工具自身的中文输出来自 node，不受影响；若真看到乱码，先在控制台执行 `chcp 65001`。
 
 ### 5.2 常用参数
 
@@ -505,6 +517,7 @@ node -e "require('W:/OpenClaw/ycIDE-electron/ycIDE-DEV/lib/krnln/krnln.constants
 | `调试输出` 怎么落 stdout | `src/main/compiler.ts:6337` `yc_debug_output_value` |
 | 命令/常量元数据怎么加载 | `src/main/libraryManager.ts`；命令映射 `src/main/eproject/libCommandMaps.ts` |
 | 命令行编译入口 | `src/main/autoBuild.ts`（`out/main/cli.js` 的实现）；独立入口 `src/main/cli.ts` |
+| 一键 `.bat`（给人双击用） | `run.bat` / `autobuildtest.bat` / `autobuild.bat`（均在仓库根，见 5.1） |
 | 编译跑在工作线程里（不卡界面） | `src/main/compileWorkerClient.ts`（worker 失败会自动回退主进程编译） |
 | 运行产物 / 调试运行时 | `src/main/compiler.ts` `runExecutable` / `stopExecutable`（`.ycdbg_cmd` 协议） |
 
