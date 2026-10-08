@@ -1,0 +1,136 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.app-body-right {
+  flex-direction: row-reverse;
+}
+
+.app-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-workspace {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-side {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.app-side-right {
+  flex-direction: row-reverse;
+}
+
+.activity-bar {
+  width: var(--activity-bar-width, 44px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.activity-bar-right {
+  border-right: none;
+  border-left: 1px solid var(--border-color);
+}
+
+.activity-button {
+  width: var(--activity-button-size, 34px);
+  height: var(--activity-button-size, 34px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.activity-button:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.activity-button.active {
+  background: var(--bg-active);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.activity-button .vs-icon {
+  filter: var(--activity-icon-filter);
+  opacity: 0.9;
+}
+
+.activity-button.active .vs-icon,
+.activity-button:hover .vs-icon {
+  opacity: 1;
+}
+
+.activity-button-bottom {
+  margin-top: auto;
+  margin-bottom: 8px;
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.activity-context-menu {
+  position: fixed;
+  left: var(--activity-context-menu-x, 0px);
+  top: var(--activity-context-menu-y, 0px);
+  z-index: 2100;
+  min-width: 190px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 6px 18px var(--menu-shadow);
+  padding: 4px;
+}
+
+.activity-context-menu-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.activity-context-menu-item:hover {
+  background: var(--bg-hover);
+}

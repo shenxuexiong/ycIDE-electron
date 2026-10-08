@@ -1,0 +1,294 @@
+import { contextBridge, ipcRenderer } from 'electron'
+import { normalizeRuntimePlatform } from '../shared/platform'
+import { THEME_CONFIG_VERSION } from '../shared/theme'
+import type { IDESettings } from '../shared/settings'
+import type { AIChatRequest, AIChatResult, AIChatWithToolsRequest, AIChatWithToolsResult, AIEditRequest, AIEditResult } from '../shared/ai'
+import type { EProjectImportRequest, EProjectImportResult, OpenProjectSelectionResult, OpenWorkspaceFolderSelectionResult } from '../shared/eprojectImport'
+import type {
+  SaveAsCustomThemeRequest,
+  SaveAsCustomThemeResult,
+  ThemeImportConflictDecision,
+  ThemeImportValidationDiagnostic,
+  ThemeConfigV2,
+  ThemeDefinition,
+  ThemeId,
+  ThemeResolutionResult,
+  ThemeTokenPayload
+} from '../shared/theme'
+
+const runtimePlatform = normalizeRuntimePlatform(process.platform)
+void THEME_CONFIG_VERSION
+type CompilerWarmupState = {
+  phase: 'idle' | 'checking' | 'warming' | 'ready' | 'failed' | 'no-compiler'
+  message: string
+  elapsedMs?: number
+}
+type AboutInfo = {
+  appVersion: string
+  author: string
+  license: string
+  runtime: { electron: string; chromium: string; node: string; v8: string }
+  zig: string
+  libs: { react: string; monaco: string; xterm: string; nodePty: string; vite: string; typescript: string }
+}
+type RecentOpenedItem = { type: 'project' | 'file'; path: string; label: string }
+type ThemeMenuState = { themes: string[]; currentTheme: string }
+type ThemeLifecycleSyncPayload = {
+  config: ThemeConfigV2
+  themes: ThemeId[]
+  currentTheme: ThemeId
+  menuState: ThemeMenuState
+}
+type ThemeImportPrepareResult =
+  | { status: 'canceled' }
+  | { status: 'invalid'; diagnostics: ThemeImportValidationDiagnostic[]; sourceFilePath: string | null }
+  | { status: 'conflict'; importedTheme: ThemeDefinition; existingThemeId: ThemeId; allowedDecisions: ThemeImportConflictDecision['decision'][]; sourceFilePath: string | null }
+  | { status: 'ready'; importedTheme: ThemeDefinition; targetThemeId: ThemeId; sourceFilePath: string | null }
+type ThemeImportCommitResult =
+  | ({ success: true; importedThemeId: ThemeId; overwritten: boolean } & ThemeLifecycleSyncPayload)
+  | ({ success: false; code: 'builtin_readonly' | 'invalid_payload' | 'conflict_decision_required' | 'invalid_conflict_decision' | 'duplicate_name' | 'theme_not_found' | 'commit_failed'; message: string; diagnostics?: ThemeImportValidationDiagnostic[] })
+
+// 向渲染进程安全暴露的 API
+const api = {
+  // 窗口控制
+  window: {
+    minimize: () => ipcRenderer.send('window:minimize'),
+    maximize: () => ipcRenderer.send('window:maximize'),
+    close: () => ipcRenderer.send('window:close'),
+    forceClose: () => ipcRenderer.send('window:forceClose')
+  },
+  // 文件操作
+  compilerEnv: {
+    /** 编译环境预热状态（未就绪时渲染进程禁用运行/编译按钮并在状态栏提示） */
+    getWarmupState: () => ipcRenderer.invoke('compiler:warmupState') as Promise<CompilerWarmupState>,
+    ensureWarm: () => ipcRenderer.invoke('compiler:ensureWarm') as Promise<CompilerWarmupState>,
+    onWarmupState: (cb: (state: CompilerWarmupState) => void) => {
+      const h = (_e: unknown, state: CompilerWarmupState): void => cb(state)
+      ipcRenderer.on('compiler:warmupState', h)
+      return () => { ipcRenderer.removeListener('compiler:warmupState', h) }
+    },
+  },
+  clipboard: {
+    /** 易语言私有剪贴板格式：把粘贴文本里的 `<文本长度: N>` 占位还原成真实长文本常量（无则返回 null） */
+    restoreEycLongTexts: (pastedText: string) =>
+      ipcRenderer.invoke('clipboard:restoreEycLongTexts', pastedText) as Promise<{ text: string; restored: number } | null>,
+  },
+  about: {
+    /** 关于窗口的版本信息（ycIDE / 运行时 / 编译器 / 框架库） */
+    getInfo: () => ipcRenderer.invoke('about:getInfo') as Promise<AboutInfo>,
+    /** 用系统默认浏览器打开外部链接（主进程只放行 http/https） */
+    openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url) as Promise<boolean>,
+  },
+  file: {
+    openDialog: () => ipcRenderer.invoke('file:openDialog') as Promise<string | null>,
+    saveDialog: (defaultPath?: string) => ipcRenderer.invoke('file:saveDialog', defaultPath) as Promise<string | null>,
+    open: (path: string) => ipcRenderer.invoke('file:open', path),
+    save: (path: string, content: string, encoding?: string) => ipcRenderer.invoke('file:save', path, content, encoding),
+    readDir: (path: string) => ipcRenderer.invoke('file:readDir', path)
+  },
+  // 项目管理
+  project: {
+    getDefaultPath: () => ipcRenderer.invoke('project:getDefaultPath') as Promise<string>,
+    selectDirectory: () => ipcRenderer.invoke('project:selectDirectory') as Promise<string | null>,
+    checkCreateTarget: (info: { name: string; path: string }) =>
+      ipcRenderer.invoke('project:checkCreateTarget', info) as Promise<{ projectDir: string; exists: boolean }>,
+    create: (info: { name: string; path: string; type: string; platform: string; overwrite?: boolean }) =>
+      ipcRenderer.invoke('project:create', info) as Promise<
+        | { status: 'created'; projectDir: string; eppPath: string }
+        | { status: 'exists'; projectDir: string }
+      >,
+    readFile: (filePath: string) => ipcRenderer.invoke('project:readFile', filePath) as Promise<string | null>,
+    readFileWithEncoding: (filePath: string, preferredEncoding?: string) =>
+      ipcRenderer.invoke('project:readFileWithEncoding', filePath, preferredEncoding) as Promise<{ content: string; encoding: string } | null>,
+    parseEpp: (eppPath: string) => ipcRenderer.invoke('project:parseEpp', eppPath) as Promise<{
+      projectName: string; outputType: string; platform: string;
+      files: Array<{ type: string; fileName: string; flag: number }>;
+      projectDir: string;
+    } | null>,
+    updatePlatform: (projectDir: string, platform: string) => ipcRenderer.invoke('project:updatePlatform', projectDir, platform),
+    saveOpenTabs: (projectDir: string, session: { openTabs: string[]; activeTabPath?: string }) => ipcRenderer.invoke('project:saveOpenTabs', projectDir, session),
+    loadOpenTabs: (projectDir: string) => ipcRenderer.invoke('project:loadOpenTabs', projectDir) as Promise<{ openTabs: string[]; activeTabPath?: string }>,
+    saveAiChat: (projectDir: string, payload: unknown) => ipcRenderer.invoke('project:saveAiChat', projectDir, payload),
+    loadAiChat: (projectDir: string) => ipcRenderer.invoke('project:loadAiChat', projectDir) as Promise<unknown>,
+    openEpp: () => ipcRenderer.invoke('project:openEpp') as Promise<OpenProjectSelectionResult>,
+    openWorkspaceFolder: () => ipcRenderer.invoke('project:openWorkspaceFolder') as Promise<OpenWorkspaceFolderSelectionResult>,
+    importEFile: (request: EProjectImportRequest) => ipcRenderer.invoke('project:importEFile', request) as Promise<EProjectImportResult>,
+    addFile: (projectDir: string, fileName: string, fileType: string, content: string) =>
+      ipcRenderer.invoke('project:addFile', projectDir, fileName, fileType, content) as Promise<string>,
+    removeFile: (projectDir: string, fileName: string) =>
+      ipcRenderer.invoke('project:removeFile', projectDir, fileName) as Promise<boolean>,
+    addResources: (projectDir: string) =>
+      ipcRenderer.invoke('project:addResources', projectDir) as Promise<string[]>,
+    importResourceFile: (projectDir: string) =>
+      ipcRenderer.invoke('project:importResourceFile', projectDir) as Promise<
+        | { success: true; fileName: string }
+        | { success: false; canceled: true }
+        | { success: false; canceled: false; message: string }
+      >,
+    replaceResourceFile: (projectDir: string, targetFileName: string) =>
+      ipcRenderer.invoke('project:replaceResourceFile', projectDir, targetFileName) as Promise<
+        | { success: true; targetFileName: string }
+        | { success: false; canceled: true }
+        | { success: false; canceled: false; message: string }
+      >,
+    getResourcePreviewData: (projectDir: string, fileName: string, withContent = true) =>
+      ipcRenderer.invoke('project:getResourcePreviewData', projectDir, fileName, withContent) as Promise<
+        | { success: true; mime: string; ext: string; filePath: string; sizeBytes: number; modifiedAtMs: number; base64?: string }
+        | { success: false; message: string }
+      >,
+    renameWindow: (projectDir: string, oldName: string, newName: string, openEycPaths: string[]) =>
+      ipcRenderer.invoke('project:renameWindow', projectDir, oldName, newName, openEycPaths) as Promise<{ newEfwPath: string; newEycPath: string }>,
+    renameClassModule: (projectDir: string, oldFileName: string, newFileName: string, oldClassName: string, newClassName: string, openSourcePaths: string[]) =>
+      ipcRenderer.invoke('project:renameClassModule', projectDir, oldFileName, newFileName, oldClassName, newClassName, openSourcePaths) as Promise<
+        | { success: true; newClassPath: string }
+        | { success: false; reason: 'exists'; newClassPath: string }
+        | { success: false; reason: 'error'; message: string; newClassPath: string }
+      >,
+  },
+  // 编译
+  compiler: {
+    compile: (projectDir: string, editorFiles?: Record<string, string>, arch?: string) =>
+      ipcRenderer.invoke('compiler:compile', projectDir, editorFiles, arch),
+    run: (
+      projectDir: string,
+      editorFiles?: Record<string, string>,
+      arch?: string,
+      debugOptions?: { breakpoints?: Record<string, number[]>; previewWindow?: string },
+    ) => ipcRenderer.invoke('compiler:run', projectDir, editorFiles, arch, debugOptions),
+    stop: () => ipcRenderer.invoke('compiler:stop'),
+    isRunning: () => ipcRenderer.invoke('compiler:isRunning') as Promise<boolean>,
+  },
+  terminal: {
+    start: () => ipcRenderer.invoke('terminal:start') as Promise<{ running: boolean; output: string[]; commands: string[]; lastCommand: string; seq: number }>,
+    send: (command: string) => ipcRenderer.invoke('terminal:send', command) as Promise<{ ok: boolean; error?: string }>,
+    // 交互式原始输入（xterm 按键/粘贴透传）与尺寸同步：高频，用 send 免 invoke 往返开销。
+    input: (data: string) => ipcRenderer.send('terminal:input', data),
+    resize: (cols: number, rows: number) => ipcRenderer.send('terminal:resize', cols, rows),
+    interrupt: () => ipcRenderer.invoke('terminal:interrupt') as Promise<{ ok: boolean; error?: string }>,
+    getSnapshot: () => ipcRenderer.invoke('terminal:getSnapshot') as Promise<{ running: boolean; output: string[]; commands: string[]; lastCommand: string; seq: number }>,
+    getLastCommand: () => ipcRenderer.invoke('terminal:getLastCommand') as Promise<string>,
+  },
+  // 支持库管理
+  library: {
+    scan: (folder?: string) => ipcRenderer.invoke('library:scan', folder),
+    load: (name: string) => ipcRenderer.invoke('library:load', name),
+    unload: (name: string) => ipcRenderer.invoke('library:unload', name),
+    loadAll: () => ipcRenderer.invoke('library:loadAll'),
+    applySelection: (selectedNames: string[]) => ipcRenderer.invoke('library:applySelection', selectedNames),
+    getList: () => ipcRenderer.invoke('library:getList'),
+    getStoreCards: () => ipcRenderer.invoke('library:getStoreCards'),
+    getRemoteIndex: () => ipcRenderer.invoke('library:getRemoteIndex'),
+    installFromRemote: (name: string) => ipcRenderer.invoke('library:installFromRemote', name),
+    removeInstalled: (name: string) => ipcRenderer.invoke('library:removeInstalled', name),
+    getInfo: (name: string) => ipcRenderer.invoke('library:getInfo', name),
+    getAllCommands: (targetPlatform?: string) => ipcRenderer.invoke('library:getAllCommands', targetPlatform),
+    getAllDataTypes: (targetPlatform?: string) => ipcRenderer.invoke('library:getAllDataTypes', targetPlatform),
+    getWindowUnits: (targetPlatform?: string) => ipcRenderer.invoke('library:getWindowUnits', targetPlatform),
+  },
+  // 命令元数据（ycmd）
+  ycmd: {
+    scan: (rootPath?: string) => ipcRenderer.invoke('ycmd:scan', rootPath) as Promise<{
+      rootPath: string
+      libraries: Array<{
+        name: string
+        folderPath: string
+        manifests: Array<{
+          filePath: string
+          manifest: unknown
+          valid: boolean
+          errors: string[]
+        }>
+      }>
+      errors: string[]
+    }>,
+  },
+  // 系统设置
+  settings: {
+    get: () => ipcRenderer.invoke('settings:get') as Promise<IDESettings>,
+    save: (partial: Partial<IDESettings>) => ipcRenderer.invoke('settings:save', partial) as Promise<IDESettings>,
+  },
+  ai: {
+    chat: (request: AIChatRequest) => ipcRenderer.invoke('ai:chat', request) as Promise<AIChatResult>,
+    chatWithTools: (request: AIChatWithToolsRequest) => ipcRenderer.invoke('ai:chatWithTools', request) as Promise<AIChatWithToolsResult>,
+    chatStream: (request: AIChatRequest, requestId: string) => ipcRenderer.invoke('ai:chatStream', request, requestId) as Promise<AIChatResult>,
+    proposeEdit: (request: AIEditRequest) => ipcRenderer.invoke('ai:proposeEdit', request) as Promise<AIEditResult>,
+    proposeEditStream: (request: AIEditRequest, requestId: string) => ipcRenderer.invoke('ai:proposeEditStream', request, requestId) as Promise<AIEditResult>,
+  },
+  // 主题管理
+  theme: {
+    getList: () => ipcRenderer.invoke('theme:getList') as Promise<ThemeId[]>,
+    load: (name: ThemeId) => ipcRenderer.invoke('theme:load', name) as Promise<ThemeDefinition | null>,
+    getCurrent: () => ipcRenderer.invoke('theme:getCurrent') as Promise<ThemeResolutionResult>,
+    saveCurrent: (name: ThemeId, themePayload?: ThemeTokenPayload) =>
+      ipcRenderer.invoke('theme:saveCurrent', name, themePayload) as Promise<ThemeConfigV2>,
+    setCurrent: (name: ThemeId) => ipcRenderer.invoke('theme:setCurrent', name) as Promise<ThemeConfigV2>,
+    saveAsCustom: (request: SaveAsCustomThemeRequest) =>
+      ipcRenderer.invoke('theme:saveAsCustom', request) as Promise<SaveAsCustomThemeResult>,
+    createFromCurrent: (request: { name: string; themePayload?: ThemeTokenPayload }) =>
+      ipcRenderer.invoke('theme:createFromCurrent', request) as Promise<
+        | ({ success: true; themeId: ThemeId; sourceThemeId: ThemeId } & ThemeLifecycleSyncPayload)
+        | ({ success: false; code: 'invalid_name' | 'duplicate_name' | 'source_theme_missing' | 'save_failed'; message: string })
+      >,
+    rename: (request: { themeId: ThemeId; newName: string }) =>
+      ipcRenderer.invoke('theme:rename', request) as Promise<
+        | ({ success: true; oldThemeId: ThemeId; newThemeId: ThemeId } & ThemeLifecycleSyncPayload)
+        | ({ success: false; code: 'invalid_name' | 'builtin_readonly' | 'theme_not_found' | 'duplicate_name' | 'rename_failed'; message: string })
+      >,
+    delete: (request: { themeId: ThemeId; confirmThemeName: string }) =>
+      ipcRenderer.invoke('theme:delete', request) as Promise<
+        | ({ success: true; deletedThemeId: ThemeId; notice: string | null } & ThemeLifecycleSyncPayload)
+        | ({ success: false; code: 'builtin_readonly' | 'theme_not_found' | 'confirm_name_mismatch' | 'delete_failed'; message: string })
+      >,
+    export: (request: { themeId: ThemeId }) =>
+      ipcRenderer.invoke('theme:export', request) as Promise<
+        | { success: true; filePath: string; fileName: string; themeId: ThemeId }
+        | { success: false; canceled?: true; code?: 'theme_not_found' | 'export_failed'; message?: string }
+      >,
+    import: (request?: { filePath?: string; fileContent?: string }) =>
+      ipcRenderer.invoke('theme:import', request) as Promise<ThemeImportPrepareResult>,
+    importCommit: (request: { importedTheme: ThemeDefinition; decision?: ThemeImportConflictDecision }) =>
+      ipcRenderer.invoke('theme:importCommit', request) as Promise<ThemeImportCommitResult>,
+  },
+  // 对话框
+  dialog: {
+    confirmSaveBeforeClose: (fileLabel: string) =>
+      ipcRenderer.invoke('dialog:confirmSaveBeforeClose', fileLabel) as Promise<'save' | 'discard' | 'cancel'>,
+    confirmProjectOverwrite: (projectDir: string) =>
+      ipcRenderer.invoke('dialog:confirmProjectOverwrite', projectDir) as Promise<'overwrite' | 'cancel'>,
+    confirmUnsavedThemeDraftClose: (intent: 'close-button' | 'overlay' | 'escape' | 'app-exit') =>
+      ipcRenderer.invoke('dialog:confirmUnsavedThemeDraftClose', intent) as Promise<'save' | 'discard' | 'continue'>,
+  },
+  // 诊断日志
+  debug: {
+    logRendererError: (payload: { source?: string; message: string; stack?: string; extra?: unknown }) =>
+      ipcRenderer.invoke('debug:logRendererError', payload) as Promise<{ success: boolean }>,
+    getRendererErrorLogPath: () =>
+      ipcRenderer.invoke('debug:getRendererErrorLogPath') as Promise<string>,
+    logRendererEvent: (payload: { source?: string; message: string; extra?: unknown }) =>
+      ipcRenderer.invoke('debug:logRendererEvent', payload) as Promise<{ success: boolean }>,
+    getRendererDebugLogPath: () =>
+      ipcRenderer.invoke('debug:getRendererDebugLogPath') as Promise<string>,
+    continue: () =>
+      ipcRenderer.invoke('debug:continue') as Promise<boolean>,
+  },
+  // 平台信息
+  system: {
+    getRuntimePlatform: () => runtimePlatform,
+    updateRecentOpened: (items: RecentOpenedItem[]) => ipcRenderer.send('menu:updateRecentOpened', items),
+    updateThemes: (state: ThemeMenuState) => ipcRenderer.send('menu:updateThemes', state),
+  },
+  // 通用 IPC。on 返回精确取消订阅的 disposer——多个组件订阅同一频道时（如 library:loaded），
+  // 必须用返回的 disposer 只摘自己的监听；用 off(channel) 会 removeAllListeners 误杀其他订阅者。
+  on: (channel: string, callback: (...args: unknown[]) => void): (() => void) => {
+    const listener = (_event: unknown, ...args: unknown[]): void => callback(...args)
+    ipcRenderer.on(channel, listener)
+    return () => { ipcRenderer.removeListener(channel, listener) }
+  },
+  off: (channel: string) => {
+    ipcRenderer.removeAllListeners(channel)
+  }
+}
+
+contextBridge.exposeInMainWorld('api', api)
+
+export type ElectronAPI = typeof api

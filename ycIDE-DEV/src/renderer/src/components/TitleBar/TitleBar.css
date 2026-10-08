@@ -1,0 +1,184 @@
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--titlebar-height);
+  background: var(--titlebar-bg-gradient, var(--titlebar-bg));
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.titlebar-drag {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+}
+
+.titlebar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 100%;
+}
+
+.titlebar-icon-image {
+  width: 24px;
+  height: 24px;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.titlebar-menu {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  font-family: var(--titlebar-menu-font-family);
+}
+
+.titlebar-menu-item {
+  position: relative;
+  height: 100%;
+}
+
+.titlebar-menu button {
+  height: 100%;
+  padding: 0 var(--spacing-md);
+  font-family: inherit;
+  font-size: var(--titlebar-menu-font-size);
+  line-height: 1.35;
+  color: var(--text-primary);
+  border-radius: 0;
+}
+.titlebar-menu button:hover,
+.titlebar-menu button.active {
+  background: var(--bg-hover);
+}
+
+/* 下拉菜单 */
+.titlebar-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 220px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px var(--menu-shadow);
+  z-index: 9999;
+  padding: 4px 0;
+}
+
+.titlebar-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 24px 10px 12px;
+  margin: 6px 0px 6px 0px;
+  font-size: var(--font-size);
+  color: var(--text-primary);
+  border-radius: 0;
+  text-align: left;
+  white-space: nowrap;
+  line-height: 1.9;
+  min-height: 22px;
+}
+.titlebar-dropdown-item:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--danger-contrast);
+}
+.titlebar-dropdown-item:hover:not(:disabled) .titlebar-dropdown-shortcut {
+  color: var(--menu-text-on-accent);
+}
+.titlebar-dropdown-item.disabled {
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+.titlebar-dropdown-shortcut {
+  margin-left: 32px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.titlebar-dropdown-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border-color);
+}
+
+/* 二级菜单 */
+.titlebar-dropdown-submenu-wrapper {
+  position: relative;
+}
+.titlebar-has-submenu {
+  padding-right: 24px;
+}
+.titlebar-submenu-arrow {
+  font-size: 8px;
+  margin-left: 12px;
+  color: var(--text-secondary);
+}
+.titlebar-dropdown-submenu-wrapper:hover > .titlebar-has-submenu {
+  background: var(--accent);
+  color: var(--danger-contrast);
+}
+.titlebar-dropdown-submenu-wrapper:hover > .titlebar-has-submenu .titlebar-submenu-arrow {
+  color: var(--menu-text-on-accent);
+}
+.titlebar-submenu {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 100%;
+  min-width: 180px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px var(--menu-shadow);
+  z-index: 10000;
+  padding: 4px 0;
+  margin: 6px 0 6px 0;
+}
+.titlebar-dropdown-submenu-wrapper:hover > .titlebar-submenu {
+  display: block;
+}
+
+.titlebar-title {
+  flex: 1;
+  text-align: center;
+  font-size: var(--font-size);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+}
+
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  color: var(--text-primary);
+}
+.titlebar-btn:hover {
+  background: var(--bg-hover);
+}
+.titlebar-btn-close:hover {
+  background: var(--danger);
+  color: var(--danger-contrast);
+}
+
+.titlebar-menu button:focus-visible,
+.titlebar-dropdown-item:focus-visible,
+.titlebar-btn:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: -1px;
+}

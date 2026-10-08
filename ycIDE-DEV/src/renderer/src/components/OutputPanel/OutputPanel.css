@@ -1,0 +1,595 @@
+.output-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+  position: relative;
+  min-height: 0;
+  height: var(--output-panel-height, 200px);
+}
+
+.output-resizer {
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  cursor: row-resize;
+  z-index: 10;
+}
+.output-resizer:hover {
+  background: var(--accent);
+}
+
+.output-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--output-header-height, 28px);
+  padding: 0 var(--spacing-md);
+  flex-shrink: 0;
+}
+
+.output-toolbar-top {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.output-toolbar-bottom {
+  border-top: 1px solid var(--border-color);
+}
+
+.output-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.output-tabs {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: stretch;
+  flex-shrink: 0;
+  height: 100%;
+}
+
+.output-tab {
+  padding: 0 var(--spacing-md);
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+}
+.output-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+
+.output-toolbar-bottom .output-tab.active {
+  border-bottom-color: transparent;
+  border-top: 2px solid var(--accent);
+}
+.output-tab:hover {
+  color: var(--text-primary);
+}
+.output-tab:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: -1px;
+}
+
+.output-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--output-icon-button-size, 22px);
+  height: var(--output-icon-button-size, 22px);
+  border-radius: 3px;
+  font-size: calc(var(--output-icon-button-size, 22px) * 0.64);
+  color: var(--text-secondary);
+}
+.output-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.output-close:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+.output-tabs-context-menu {
+  position: fixed;
+  left: var(--output-tabs-menu-x, 0px);
+  top: var(--output-tabs-menu-y, 0px);
+  z-index: 2200;
+  min-width: 240px;
+  background: var(--bg-secondary, #252526);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 4px;
+  box-shadow: 0 6px 18px var(--menu-shadow, rgba(0, 0, 0, 0.4));
+  padding: 4px;
+}
+
+.output-tabs-context-menu-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #d4d4d4);
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.output-tabs-context-menu-item:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
+
+.output-content {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  min-height: 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.output-content::selection,
+.output-content *::selection {
+  background: var(--selection-highlight);
+}
+
+.output-line {
+  padding: 1px 0;
+  white-space: pre;
+  word-break: normal;
+}
+.output-line.info {
+  color: var(--info);
+}
+.output-line.success {
+  color: var(--success);
+}
+.output-line.error {
+  color: var(--error);
+}
+.output-line.warning {
+  color: var(--warning);
+}
+
+/* 最左列时间轴/类型/用时：inline-block 定宽列，保证跨行对齐，且不改变整行 pre 的文本流。
+   字体/字号跟随系统设置：--font-family（界面字体）+ --font-size-small（界面字号 × 0.88），
+   列宽用 ch 随字号等比缩放；数字对齐靠 tabular-nums */
+.output-line-meta {
+  display: inline-block;
+  margin-right: 10px;
+  font-family: var(--font-family, inherit);
+  font-size: var(--font-size-small, 11px);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.output-line-time {
+  display: inline-block;
+  min-width: 12ch;
+  margin-right: 8px;
+}
+
+.output-line-tag {
+  display: inline-block;
+  min-width: 4ch;
+  margin-right: 8px;
+  text-align: center;
+}
+
+.output-line-tag-error {
+  color: var(--error);
+}
+
+.output-line-tag-warning {
+  color: var(--warning);
+}
+
+.output-line-tag-success {
+  color: var(--success);
+}
+
+.output-line-tag-info {
+  color: var(--info);
+}
+
+.output-line-elapsed {
+  display: inline-block;
+  min-width: 8ch;
+  margin-right: 8px;
+  text-align: right;
+}
+
+/* 编译报错里可点击跳转的“文件:行号”/“第N行”链接（继承所在行的颜色，仅加下划线与手型） */
+.output-line-loc-link {
+  color: inherit;
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.output-line-loc-link:hover {
+  filter: brightness(1.2);
+}
+.output-line-loc-link:focus-visible {
+  outline: 1px solid var(--focus-ring, currentColor);
+  outline-offset: 1px;
+}
+
+/* 提示面板 - 命令详情 */
+.output-hint-content {
+  padding: var(--spacing-md);
+  overflow: auto;
+  min-height: 0;
+}
+
+.cmd-detail-empty {
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: var(--spacing-md) 0;
+}
+
+.cmd-detail {
+  font-size: var(--font-size);
+  line-height: 1.8;
+  color: var(--text-primary);
+}
+
+.cmd-detail-call {
+  color: var(--accent);
+  margin-bottom: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.cmd-detail-label {
+  color: var(--text-secondary);
+}
+
+.cmd-detail-eng {
+  color: var(--info);
+  margin-bottom: 4px;
+}
+
+.cmd-detail-desc {
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
+.cmd-detail-desc.cmd-detail-desc-error {
+  color: var(--error);
+}
+
+.cmd-detail-params {
+  border-top: 1px solid var(--border-color);
+  padding-top: 6px;
+}
+
+.cmd-detail-param {
+  font-size: var(--font-size-small);
+  padding: 3px 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
+.cmd-detail-param-head {
+  color: var(--info);
+}
+
+.cmd-detail-param-desc {
+  color: var(--text-secondary);
+}
+
+.cmd-detail-param-highlight {
+  background: var(--info-highlight-bg);
+  border-left: 2px solid var(--info-highlight-border);
+  padding-left: 6px;
+}
+
+.cmd-detail-param-detail {
+  font-size: var(--font-size-small);
+  line-height: 1.6;
+  color: var(--info);
+}
+
+.cmd-detail-param-detail-desc {
+  font-size: var(--font-size-small);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* 问题面板 */
+.output-problems-content {
+  padding: var(--spacing-sm) var(--spacing-md);
+  overflow: auto;
+  min-height: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+}
+
+.output-problem-empty {
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: var(--spacing-md) 0;
+}
+
+.output-problem-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: calc(var(--font-size) + 7px);
+}
+.output-problem-row:hover {
+  background: var(--bg-hover);
+}
+.output-terminal-content {
+  font-family: var(--font-mono);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.output-terminal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+}
+
+/* 状态栏右侧的「中断」按钮（发送 Ctrl+C） */
+.output-terminal-interrupt {
+  margin-left: auto;
+  padding: 1px 10px;
+  font-size: var(--font-size-small);
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.output-terminal-interrupt:hover {
+  background: var(--hover-bg, rgba(127, 127, 127, 0.15));
+}
+
+/* xterm.js 容器：铺满 meta 行以下的空间，xterm 视口自行滚动 */
+.output-terminal-content {
+  overflow: hidden;
+}
+.output-terminal-xterm {
+  flex: 1;
+  min-height: 120px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--terminal-bg, var(--bg-primary));
+  padding: 4px 2px 4px 6px;
+}
+.output-terminal-xterm .xterm,
+.output-terminal-xterm .xterm-viewport,
+.output-terminal-xterm .xterm-screen {
+  height: 100% !important;
+}
+.output-terminal-xterm .xterm-viewport {
+  overflow-y: auto;
+}
+
+/* 终端右键菜单（复用标签右键菜单观感） */
+.output-terminal-context-menu {
+  position: fixed;
+  left: var(--output-terminal-menu-x, 0px);
+  top: var(--output-terminal-menu-y, 0px);
+  z-index: 2200;
+  min-width: 120px;
+  background: var(--bg-secondary, #252526);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 4px;
+  box-shadow: 0 6px 18px var(--menu-shadow, rgba(0, 0, 0, 0.4));
+  padding: 4px;
+}
+.output-terminal-context-menu-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #d4d4d4);
+  text-align: left;
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font: inherit;
+}
+.output-terminal-context-menu-item:hover:not(:disabled) {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
+.output-terminal-context-menu-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.output-terminal-status {
+  color: var(--error);
+  font-size: var(--font-size-small);
+}
+
+@keyframes output-problem-flash {
+  0% { background: transparent; border-left-color: transparent; }
+  25%, 75% { background: var(--warning-flash); border-left-color: var(--warning-border); }
+  100% { background: transparent; border-left-color: transparent; }
+}
+
+.output-problem-row.flash {
+  border-left: 2px solid transparent;
+  padding-left: 2px;
+  animation: output-problem-flash 1.2s ease;
+}
+
+.output-problem-icon {
+  color: var(--error);
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.output-problem-icon.warning {
+  color: var(--warning);
+}
+
+.output-problem-msg {
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.output-problem-loc {
+  color: var(--text-secondary);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* 双行号显示时的文本模式行号（次要信息，弱化） */
+.output-problem-loc-source {
+  opacity: 0.65;
+  margin-left: 4px;
+}
+
+.output-problem-design {
+  font-style: italic;
+}
+
+.output-problem-file {
+  color: var(--text-secondary);
+  font-size: 11px;
+  background: var(--bg-hover);
+  border-radius: 3px;
+  padding: 0 4px;
+  flex-shrink: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.output-problem-summary {
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+
+.output-debug-table-wrap {
+  margin-top: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: auto;
+  background: var(--bg-primary);
+}
+
+.output-debug-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.output-debug-filter {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  outline: none;
+}
+
+.output-debug-filter:focus {
+  border-color: var(--accent);
+}
+
+.output-debug-count {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.output-debug-actions {
+  margin-top: 12px;
+}
+
+.output-debug-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.output-debug-table th,
+.output-debug-table td {
+  border-bottom: 1px solid var(--border-color);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.output-debug-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.output-debug-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.output-debug-name {
+  width: 26%;
+  color: var(--output-emphasis);
+  word-break: break-word;
+}
+
+.output-debug-type {
+  width: 16%;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.output-debug-value {
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

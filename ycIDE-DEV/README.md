@@ -1,0 +1,120 @@
+# ycIDE-electron
+
+> 基于 Electron + React + TypeScript 重构的易承语言集成开发环境
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) — 自由使用、修改、分发（含商用），衍生作品须注明基于 ycIDE
+
+## 技术栈
+
+- **前端**：React 19 + TypeScript + Vite
+- **桌面框架**：Electron 43
+- **编辑器**：Monaco Editor（文本文件）+ 自研表格式代码编辑器（.eyc 源码）
+- **编译器**：内置 Zig（Windows GNU 目标）
+- **构建工具**：electron-vite + electron-builder
+
+📋 [版本更新说明](版本更新说明.md)
+
+## 编译器环境准备（首次拉取后必读）
+
+编译链路使用 `Zig (windows-gnu)`：不需要 MinGW，也不依赖本地 MSVC/Windows SDK。仓库**不包含** `compiler/zig/` 二进制文件（体积超过 GitHub 单文件 100MB 限制），首次使用请自行下载放置：
+
+1. 从 [Zig 官方下载页](https://ziglang.org/download/) 按宿主平台下载：
+   - Windows x64：`zig-windows-x86_64-*.zip`
+   - macOS（Apple Silicon）：`zig-macos-aarch64-*.tar.xz`
+   - Linux：`zig-linux-*.tar.xz`
+2. 在项目根目录创建 `compiler/zig/`，解压后确保可执行文件位于 `compiler/zig/zig.exe`（Windows）或 `compiler/zig/zig`（macOS / Linux）。
+3. 运行 `compiler/zig/zig version` 验证安装。
+4. 也可以不解压到项目内：在 设置 →「编译」→ 编译器路径 中指定任意位置的 `zig.exe`（或其所在目录）。
+
+---
+
+## 待开发和优化的功能
+
+### 一、自定义数据类型编辑器和全局变量编辑器和常量表编辑器和资源编辑器和 DLL 命令编辑器（已完成）
+### 二、AI 代码助手（基于 deepseek API 的智能代码补全、错误分析、代码优化建议）（已基本完成，还剩Agent和Plan模式）
+### 三、调试器集成（基于 Windows 调试 API 的本地调试、断点管理、变量监视、调用堆栈）
+### 四、会员系统，主要用于AI代码助手的使用权限控制和额度管理
+### 五、插件系统，允许第三方开发者为 ycIDE 开发功能插件，扩展编辑器功能、编译器功能、调试器功能等
+
+
+
+## 开发
+
+```bash
+# 安装依赖
+npm install
+
+# 开发模式
+npm run dev
+
+# 打包
+npm run package:win
+
+# Windows 签名打包（可选）
+npm run package:win:signed
+
+# 生成误报申诉包（示例）
+npm run security:av:report -- --sample "D:\\Documents\\ycIDE Projects\\新项目6\\output\\windows\\x64\\新项目6.exe" --compiler "zig c++" --target "windows-x64" --mode "运行(宿主平台)" --detection "VHO:Trojan-PSW.Win32.ReaderDB.gen"
+```
+
+## 杀毒软件误报排查与发布建议
+
+### 本地排查（用户）
+- 如果运行日志中出现 `spawn EPERM` / `EACCES` / `UNKNOWN`（或 errno 为 `-4048`），通常是安全软件拦截导致。
+- 先检查安全软件隔离区，确认是否已删除或阻止你刚编译的 exe。
+- 生成误报申诉包：
+
+```bash
+npm run security:av:report -- --sample "<你的exe路径>" --compiler "zig c++" --target "windows-x64" --mode "运行(宿主平台)"
+```
+
+- 生成目录默认位于 `debug_logs/av-report-时间戳/`，包含 `report.json` 与 `attachments/`，可直接提交给杀软厂商误报通道。
+
+### 发布建议（项目维护者）
+- 不把“让所有用户手工加白名单”作为默认方案。
+- 推荐在发布链路使用签名打包（证书通过环境变量注入）。
+- 可用环境变量：
+	- `YCIDE_WIN_CERT_FILE`：证书文件路径（PFX）
+	- `YCIDE_WIN_CERT_PASSWORD`：证书密码
+	- `YCIDE_WIN_TIMESTAMP_URL`：RFC3161 时间戳服务地址（可选）
+	- `YCIDE_WIN_PUBLISHER_NAME`：发布者名称（可选）
+	- `YCIDE_REQUIRE_WIN_SIGN=1`：强制要求签名（未配置证书时打包失败）
+
+## 贡献
+欢迎任何形式的贡献！无论是修复 bug、添加新功能、改进文档还是提供反馈，都非常感谢。请遵循以下步骤：
+1. Fork 本仓库
+2. 创建一个新的分支（`git checkout -b feature/your-feature-name`）
+3. 提交你的更改（`git commit -m 'Add some feature'`）
+4. 推送到分支（`git push origin feature/your-feature-name`）
+5. 创建一个 Pull Request
+## 📜 许可证
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+本项目采用 **MIT 开源许可证**，详情请参阅 [LICENSE](LICENSE) 文件。
+
+> [!IMPORTANT]
+> 你可以自由地**使用、复制、修改和分发**本项目（包括用于商业用途），但在分发副本或发布衍生作品时，**须保留原始版权声明和许可声明，并注明该作品基于 ycIDE**。
+## 联系方式
+如果你有任何问题、建议或想要参与开发，请随时通过以下方式联系我：
+- 邮箱：[chungbin@522.plus](mailto:chungbin@522.plus)
+- GitHub：[https://github.com/chungbinb](https://github.com/chungbinb)
+- QQ 群：767523155
+
+感谢你对 ycIDE 的关注和支持！希望这个项目能为中文母语和不会英文的开发者们提供一个强大、易用的集成开发环境。
+
+## 贡献人员名单
+
+| QQ昵称 | QQ号 | 精易论坛网名 | 贡献类型 |
+|--------|------|-------------|---------|
+| 我是522呀 | 641548913 | chungbin | 项目创始人、主要开发者 |
+| Mortal. | 273502613 |  | 项目贡献者、主要开发者 |
+| 瑾年c | 100483298 | — | 捐赠 |
+| ☆孤星独月★ | 340300892 | — | 捐赠 |
+| 接软件开发 | 86523553 | — | 捐赠和项目测试 |
+| 出现又离开 | 1069988209 | — | 捐赠 |
+| 简简单单 | 738822632 | — | 捐赠 |
+| ssxiaoqiao | 449834775 | — | 捐赠和测试 |
+| TermINatOr | 283100512 | — | 项目主要测试员 |
+| Tel: 小林子 喵~ | 452639766 | — | 项目测试员 |
+| *其它群里测试和反馈的朋友们* | — | — | 测试、反馈 |

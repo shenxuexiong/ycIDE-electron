@@ -1,0 +1,242 @@
+/* 新建项目对话框 */
+
+.np-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.np-dialog {
+  background: var(--dialog-bg);
+  border: 1px solid var(--dialog-border);
+  border-radius: 6px;
+  width: 560px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px var(--dialog-shadow);
+}
+
+.np-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.np-dialog-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.np-dialog-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.np-dialog-close:hover {
+  color: var(--text-primary);
+}
+
+.np-dialog-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.np-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.np-field label {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.np-field-label {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.np-field input {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  outline: none;
+}
+.np-field input:focus {
+  border-color: var(--border-focus);
+}
+
+.np-path-row {
+  display: flex;
+  gap: 6px;
+}
+
+.np-path-row input {
+  flex: 1;
+}
+
+.np-path-row button {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--button-secondary-bg);
+  border: 1px solid var(--button-secondary-border);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.np-path-row button:hover {
+  background: var(--button-secondary-hover);
+}
+
+/* 项目类型列表 */
+.np-type-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  max-height: 160px;
+  overflow-y: auto;
+  background: var(--bg-primary);
+}
+
+.np-type-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  border: none;
+  background: none;
+  text-align: left;
+  width: 100%;
+}
+.np-type-item:hover {
+  background: var(--bg-hover);
+}
+.np-type-item.selected {
+  background: var(--bg-active);
+}
+
+.np-type-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 16px;
+}
+
+.np-type-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.np-type-name {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.np-type-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* 平台选择 */
+.np-platform-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.np-platform-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.np-platform-btn:hover {
+  background: var(--bg-hover);
+}
+.np-platform-btn.selected {
+  background: var(--bg-active);
+  border-color: var(--accent);
+}
+
+/* 底部按钮 */
+.np-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.np-btn {
+  height: 28px;
+  padding: 0 16px;
+  font-size: 13px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.np-btn-primary {
+  background: var(--accent);
+  color: var(--danger-contrast);
+  border-color: var(--accent);
+}
+.np-btn-primary:hover {
+  background: var(--accent-hover);
+}
+.np-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.np-btn-secondary {
+  background: var(--button-secondary-bg);
+  color: var(--text-primary);
+  border-color: var(--button-secondary-border);
+}
+.np-btn-secondary:hover {
+  background: var(--button-secondary-hover);
+}
+
+.np-dialog-close:focus-visible,
+.np-path-row button:focus-visible,
+.np-type-item:focus-visible,
+.np-platform-btn:focus-visible,
+.np-btn:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 1px;
+}

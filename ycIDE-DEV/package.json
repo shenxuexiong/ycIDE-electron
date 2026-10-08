@@ -1,0 +1,147 @@
+{
+  "name": "ycide",
+  "version": "0.0.5-beta.28",
+  "description": "ycIDE - 易语言集成开发环境 (HTML版)",
+  "license": "MIT",
+  "author": "chungbinb",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chungbinb/ycIDE-electron.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "cli": "electron-vite build && node out/main/cli.js",
+    "cli:run": "node out/main/cli.js",
+    "typecheck": "tsc -p tsconfig.typecheck.node.json && tsc -p tsconfig.typecheck.web.json",
+    "lint": "eslint .",
+    "test:unit": "vitest run",
+    "test:unit:fast": "node scripts/test-unit-fast.mjs",
+    "test": "npm run typecheck && npm run lint && npm run test:unit && npm run test:contract:editor:all",
+    "inventory:baseline": "node scripts/migration/inventory-baseline.mjs --regenerate",
+    "inventory:check": "node scripts/migration/inventory-baseline.mjs --check-manifest",
+    "test:migration": "node --test tests/migration/inventory-baseline.spec.mjs",
+    "encoding:convert": "node scripts/migration/convert-encoding.mjs --write",
+    "encoding:check": "node scripts/migration/convert-encoding.mjs --check",
+    "test:migration:encoding": "node --test tests/migration/encoding-conversion.spec.mjs",
+    "x64:adapt": "node scripts/migration/x64-adaptation.mjs --write",
+    "x64:check": "node scripts/migration/x64-adaptation.mjs --check",
+    "test:migration:x64": "node --test tests/migration/x64-adaptation.spec.mjs",
+    "test:contract:editor": "node --test tests/contract/editor-keyboard-dispatch-contract.spec.mjs",
+    "test:contract:editor:utils": "node --test tests/contract/editor-helper-utils-contract.spec.mjs",
+    "test:contract:editor:all": "npm run test:contract:editor && npm run test:contract:editor:utils",
+    "test:ui": "npm run build && playwright test",
+    "test:ui:smoke": "npm run build && playwright test tests/ui/electron-start.spec.js",
+    "test:ui:a11y": "npm run build && playwright test tests/ui/accessibility.spec.js",
+    "test:ui:keyboard": "npm run build && playwright test tests/ui/keyboard-navigation.spec.js",
+    "test:theme:gate": "node scripts/theme/run-theme-gate.mjs",
+    "test:theme:full": "node scripts/theme/run-theme-full.mjs",
+    "krnln:mapping:generate": "node scripts/krnln/generate-command-mapping.mjs",
+    "krnln:mapping:check": "node scripts/krnln/generate-command-mapping.mjs --check",
+    "krnln:pinyin:generate": "node scripts/krnln/generate-pinyin-table.mjs",
+    "libraries:package": "node scripts/package-libraries.mjs",
+    "package:win": "electron-vite build && electron-builder --win",
+    "package:win:zip": "npm run package:win && node scripts/package-win-zip.mjs",
+    "package:win:signed": "node scripts/security/package-win-signed.mjs",
+    "package:mac": "electron-vite build && electron-builder --mac",
+    "package:linux": "electron-vite build && electron-builder --linux",
+    "security:av:report": "node scripts/security/collect-antivirus-report.mjs"
+  },
+  "build": {
+    "appId": "com.ycide.app",
+    "productName": "ycIDE",
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*",
+      "!out/**/*.map",
+      "node_modules/node-pty/**/*",
+      "!node_modules/node-pty/**/*.pdb",
+      "!node_modules/node-pty/**/*.test.js",
+      "!node_modules/node-pty/{src,deps,scripts,build}/**",
+      "!node_modules/node-pty/prebuilds/{darwin-arm64,darwin-x64}/**"
+    ],
+    "asarUnpack": [
+      "out/main/compile-worker.js",
+      "out/main/chunks/**",
+      "node_modules/node-pty/**"
+    ],
+    "extraFiles": [
+      {
+        "from": "compiler",
+        "to": "compiler"
+      },
+      {
+        "from": "lib",
+        "to": "lib"
+      },
+      {
+        "from": "themes",
+        "to": "themes"
+      }
+    ],
+    "win": {
+      "target": [
+        "dir"
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "resources/icon.icns"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "resources/icon.png"
+    }
+  },
+  "devDependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "@playwright/test": "^1.52.0",
+    "@types/adm-zip": "^0.5.8",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "axe-core": "^4.10.3",
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "eslint": "^10.4.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
+    "jsdom": "^29.1.1",
+    "monaco-editor": "^0.55.1",
+    "pinyin-pro": "^3.28.0",
+    "png2icons": "^2.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sharp": "^0.35.3",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.61.0",
+    "vite": "^6.0.0",
+    "vitest": "^4.1.8",
+    "zustand": "^5.0.14"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/xterm": "^5.5.0",
+    "adm-zip": "^0.5.17",
+    "diff": "^9.0.0",
+    "iconv-lite": "^0.7.2",
+    "node-pty": "^1.1.0"
+  }
+}

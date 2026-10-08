@@ -1,0 +1,41 @@
+node_modules/
+out/
+dist/
+*.log
+.DS_Store
+Thumbs.db
+.ycide-session.json
+第三方相关文件/
+第三行相关文件/
+.vs/
+*.vsidx
+*.tsbuildinfo
+playwright-report/
+test-results/
+coverage/
+# electron-vite 开发时生成的临时配置文件
+electron.vite.config.*.mjs
+temp_*.txt
+test-fne.mjs
+支持库源码/
+.github/*
+!.github/workflows/
+!.github/workflows/*.yml
+.planning/
+.vscode/
+/.idea/
+/.npmrc
+UsersAdministratorAppDataLocalTempycide-test-rc/
+resources/Visual Studio 2022 Image Library/
+
+# Compiler toolchains are local assets and should not be versioned
+compiler/
+
+# 本地编辑器行为验证框架（组件复现 + Playwright 回归脚本），不入库
+.tmp-harness/
+
+# 本地流程验证临时目录，不入库
+.tmp-flow-verify/
+
+# 主题管理器损坏自动备份（本地留存即可，不入库）
+themes/*.corrupted.*

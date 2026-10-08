@@ -1,0 +1,1572 @@
+/* ========== 可视化设计器 ========== */
+
+.vd {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  background: var(--bg-primary);
+  position: relative;
+}
+
+/* 工具箱 */
+.vd-toolbox {
+  width: 130px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-width: 130px;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  --vd-toolbox-scale: 1;
+  --vd-toolbox-tile-size: 34px;
+  --vd-toolbox-list-columns: 2;
+}
+
+.vd-toolbox.vd-toolbox-docked {
+  width: var(--vd-toolbox-dock-width, 160px);
+}
+
+.vd-toolbox.vd-toolbox-docked-right {
+  order: 2;
+  border-left: 1px solid var(--border-color);
+  border-right: none;
+}
+
+.vd-toolbox.vd-toolbox-docked-left {
+  order: 0;
+  border-left: none;
+  border-right: 1px solid var(--border-color);
+}
+
+/* 浮动工具箱：使用 fixed 定位，不被父容器裁剪 */
+.vd-toolbox.vd-toolbox-float {
+  position: fixed;
+  left: var(--vd-toolbox-left, 0px);
+  top: var(--vd-toolbox-top, 0px);
+  width: var(--vd-toolbox-width, 130px);
+  height: var(--vd-toolbox-height, 400px);
+  z-index: 1000;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px var(--menu-shadow);
+  overflow: hidden;
+}
+
+/* 图标模式下宽度更窄 */
+.vd-toolbox.vd-toolbox-icon-mode {
+  min-width: 86px;
+}
+.vd-toolbox.vd-toolbox-icon-mode.vd-toolbox-float {
+  min-width: 86px;
+}
+
+.vd-toolbox-header {
+  display: flex;
+  align-items: center;
+  padding: calc(4px * var(--vd-toolbox-scale)) calc(6px * var(--vd-toolbox-scale));
+  border-bottom: 1px solid var(--border-color);
+  cursor: default;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.vd-toolbox-float .vd-toolbox-header {
+  cursor: move;
+}
+
+.vd-toolbox-title {
+  flex: 1;
+  font-size: calc(10px * var(--vd-toolbox-scale));
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vd-toolbox-icon-mode .vd-toolbox-title {
+  display: none;
+}
+
+.vd-toolbox-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.vd-toolbox-btn {
+  width: calc(18px * var(--vd-toolbox-scale));
+  height: calc(18px * var(--vd-toolbox-scale));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px * var(--vd-toolbox-scale));
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0;
+}
+.vd-toolbox-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* 搜索框 */
+.vd-toolbox-search {
+  padding: calc(4px * var(--vd-toolbox-scale));
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+.vd-toolbox-icon-mode .vd-toolbox-search {
+  display: none;
+}
+
+.vd-toolbox-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: calc(2px * var(--vd-toolbox-scale)) calc(6px * var(--vd-toolbox-scale));
+  font-size: calc(11px * var(--vd-toolbox-scale));
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+}
+.vd-toolbox-search-input:focus {
+  border-color: var(--accent);
+}
+
+/* 工具箱列表（可滚动） */
+.vd-toolbox-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.vd-toolbox-list.vd-toolbox-list-multi {
+  display: grid;
+  grid-template-columns: repeat(var(--vd-toolbox-list-columns, 2), minmax(0, 1fr));
+  align-content: flex-start;
+  gap: calc(4px * var(--vd-toolbox-scale));
+  padding: calc(4px * var(--vd-toolbox-scale));
+}
+
+.vd-toolbox-list.vd-toolbox-list-multi .vd-tool-item {
+  width: 100%;
+  min-width: 0;
+}
+
+.vd-toolbox-list.vd-toolbox-list-multi .vd-toolbox-empty {
+  grid-column: 1 / -1;
+}
+
+/* 置顶的组件分类下拉（与搜索框同样式风格） */
+.vd-toolbox-category {
+  padding: calc(4px * var(--vd-toolbox-scale)) calc(6px * var(--vd-toolbox-scale)) 0;
+  flex-shrink: 0;
+}
+
+.vd-toolbox-category-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: calc(2px * var(--vd-toolbox-scale)) calc(4px * var(--vd-toolbox-scale));
+  font-size: calc(11px * var(--vd-toolbox-scale));
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-input, var(--bg-primary));
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.vd-toolbox-category-select:focus {
+  border-color: var(--accent);
+}
+
+/* 两级分类下拉：组标题（核心组件/第三方组件）与型选项在深色主题下显式着色 */
+.vd-toolbox-category-select optgroup {
+  color: var(--text-secondary, var(--text-primary));
+  background: var(--bg-input, var(--bg-primary));
+  font-weight: 600;
+}
+
+.vd-toolbox-category-select option {
+  color: var(--text-primary);
+  background: var(--bg-input, var(--bg-primary));
+  font-weight: 400;
+}
+
+.vd-toolbox-icon-mode .vd-toolbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: flex-start;
+  gap: calc(4px * var(--vd-toolbox-scale));
+  padding: calc(4px * var(--vd-toolbox-scale));
+}
+
+.vd-tool-item {
+  display: flex;
+  align-items: center;
+  gap: calc(6px * var(--vd-toolbox-scale));
+  padding: calc(4px * var(--vd-toolbox-scale)) calc(6px * var(--vd-toolbox-scale));
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: calc(11px * var(--vd-toolbox-scale));
+  width: 100%;
+  text-align: left;
+  border-left: 2px solid transparent;
+}
+.vd-toolbox-icon-mode .vd-tool-item {
+  justify-content: center;
+  padding: calc(6px * var(--vd-toolbox-scale)) 0;
+  flex-direction: column;
+  gap: 0;
+  width: var(--vd-toolbox-tile-size);
+  min-width: var(--vd-toolbox-tile-size);
+  flex: 0 0 var(--vd-toolbox-tile-size);
+  border-left: none;
+  border: 1px solid transparent;
+  border-radius: calc(4px * var(--vd-toolbox-scale));
+}
+.vd-tool-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.vd-tool-item.active {
+  background: var(--bg-active);
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+
+.vd-toolbox-icon-mode .vd-tool-item.active {
+  border-left-color: transparent;
+  border-color: var(--accent);
+}
+
+.vd-tool-icon {
+  font-size: calc(14px * var(--vd-toolbox-scale));
+  line-height: 1;
+  width: calc(22px * var(--vd-toolbox-scale));
+  height: calc(22px * var(--vd-toolbox-scale));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.vd-tool-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 画布区域 */
+.vd-canvas-area {
+  flex: 1;
+  order: 1;
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-primary);
+}
+
+.vd-toolbox-resizer {
+  position: absolute;
+  z-index: 3;
+}
+
+.vd-toolbox-resizer-docked {
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.vd-toolbox-resizer-right {
+  left: -3px;
+}
+
+.vd-toolbox-resizer-left {
+  right: -3px;
+}
+
+.vd-toolbox-resizer-float {
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  background:
+    linear-gradient(135deg, transparent 0 50%, color-mix(in srgb, var(--text-secondary) 45%, transparent) 50% 60%, transparent 60% 100%);
+}
+
+.vd-canvas-area:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.vd-ruler-corner {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  z-index: 4;
+}
+
+.vd-ruler {
+  position: absolute;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  z-index: 3;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+  overflow: hidden;
+}
+
+.vd-ruler-top {
+  left: 24px;
+  right: 0;
+  top: 0;
+  height: 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.vd-ruler-left {
+  left: 0;
+  top: 24px;
+  bottom: 0;
+  width: 24px;
+  border-right: 1px solid var(--border-color);
+}
+
+/* 对齐工具条：浮在标尺(24px)下方、左标尺右侧的悬浮小工具条；只随可视化设计器出现 */
+.vd-align-bar {
+  position: absolute;
+  top: 28px;
+  left: 28px;
+  z-index: 5;
+  display: flex;
+  gap: 1px;
+  padding: 2px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 1px 5px color-mix(in srgb, var(--menu-shadow, rgba(0, 0, 0, 0.4)) 60%, transparent);
+}
+
+/* 左上角固定模式：窗体钉在画布左上角会与工具条重叠，对齐工具条改挂画布左下角 */
+.vd-align-bar-bottom {
+  top: auto;
+  bottom: 28px;
+}
+
+.vd-align-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.vd-align-btn:hover:not(:disabled) {
+  /* 悬停不再填背景，改画一圈明显的亮色圆角边框（inset box-shadow 跟随 border-radius:3px，
+     不撑大盒子）。颜色在主题焦点色基础上提亮，比原来的淡背景更醒目 */
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--border-focus, #2f9bff) 70%, white);
+}
+
+.vd-align-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.vd-ruler-tick {
+  position: absolute;
+  z-index: 2;
+}
+
+.vd-ruler-selection {
+  position: absolute;
+  z-index: 1;
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.vd-ruler-selection-x {
+  left: var(--vd-ruler-selection-start, 0px);
+  top: 0;
+  width: var(--vd-ruler-selection-size, 0px);
+  height: 100%;
+}
+
+.vd-ruler-selection-y {
+  left: 0;
+  top: var(--vd-ruler-selection-start, 0px);
+  width: 100%;
+  height: var(--vd-ruler-selection-size, 0px);
+}
+
+.vd-ruler-cursor {
+  position: absolute;
+  z-index: 3;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg-secondary) 45%, transparent);
+}
+
+.vd-ruler-cursor-x {
+  left: var(--vd-ruler-cursor-pos, 0px);
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.vd-ruler-cursor-y {
+  left: 0;
+  right: 0;
+  top: var(--vd-ruler-cursor-pos, 0px);
+  height: 1px;
+}
+
+.vd-ruler-tick-x {
+  left: var(--vd-ruler-tick-pos, 0px);
+  bottom: 0;
+  height: 6px;
+  width: 1px;
+  background: color-mix(in srgb, var(--text-primary) 28%, transparent);
+}
+
+.vd-ruler-tick-y {
+  top: var(--vd-ruler-tick-pos, 0px);
+  right: 0;
+  width: 6px;
+  height: 1px;
+  background: color-mix(in srgb, var(--text-primary) 28%, transparent);
+}
+
+.vd-ruler-tick.major {
+  background: color-mix(in srgb, var(--text-primary) 48%, transparent);
+}
+
+.vd-ruler-tick-x.mid {
+  height: 10px;
+}
+
+.vd-ruler-tick-x.major {
+  height: 14px;
+}
+
+.vd-ruler-tick-y.mid {
+  width: 10px;
+}
+
+.vd-ruler-tick-y.major {
+  width: 14px;
+}
+
+.vd-ruler-label {
+  position: absolute;
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.vd-ruler-tick-x .vd-ruler-label {
+  left: 3px;
+  top: 1px;
+}
+
+.vd-ruler-tick-y .vd-ruler-label {
+  left: 2px;
+  top: 2px;
+  transform: rotate(-90deg);
+  transform-origin: left top;
+}
+
+.vd-canvas-scroll {
+  position: absolute;
+  left: 24px;
+  top: 24px;
+  right: 0;
+  bottom: 0;
+  overflow: scroll;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--text-primary) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--text-primary) 8%, transparent) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.vd-canvas-scroll.vd-canvas-scroll-pan-ready {
+  cursor: grab;
+}
+
+.vd-canvas-scroll.vd-canvas-scroll-pan-active {
+  cursor: grabbing;
+}
+
+.vd-canvas-workspace {
+  position: relative;
+  width: var(--vd-workspace-width, 0px);
+  height: var(--vd-workspace-height, 0px);
+}
+
+/* 右下角缩放控件：适应窗口按钮 + 1% 步进滑杆 + 倍率预设菜单 */
+.vd-zoom-control {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+}
+
+.vd-zoom-fit-btn,
+.vd-zoom-value-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 18px;
+  padding: 0 4px;
+  cursor: pointer;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.vd-zoom-value-btn {
+  min-width: 42px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.vd-zoom-fit-btn:hover,
+.vd-zoom-value-btn:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.vd-zoom-step-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+  width: 18px;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.vd-zoom-step-btn:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.vd-zoom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 110px;
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.vd-zoom-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text-secondary) 35%, transparent);
+}
+
+.vd-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+}
+
+.vd-zoom-slider:hover::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.vd-zoom-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  display: flex;
+  flex-direction: column;
+  min-width: 84px;
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  box-shadow: 0 4px 14px var(--menu-shadow, rgba(0, 0, 0, 0.4));
+}
+
+.vd-zoom-menu-item {
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 22px;
+  padding: 0 10px;
+  text-align: right;
+  cursor: pointer;
+  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vd-zoom-menu-item:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.vd-zoom-menu-item.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.vd-form-zoom-shell {
+  position: absolute;
+  left: var(--vd-shell-left, 0px);
+  top: var(--vd-shell-top, 0px);
+  width: var(--vd-shell-width, auto);
+  height: var(--vd-shell-height, auto);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+/* 窗口外壳 */
+.vd-form-wrapper {
+  display: flex;
+  flex-direction: column;
+  transform: scale(var(--vd-zoom, 1));
+  transform-origin: top left;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.2), 0 0 0 1px var(--vd-form-border, #9ca3af);
+  position: relative;
+  border-radius: 8px;
+  overflow: visible;
+}
+
+.vd-form-wrapper-selected {
+  outline: 1px dashed var(--accent);
+  outline-offset: 1px;
+}
+
+/* 边框样式（窗口「边框」属性）：0 无边框 — 去标题栏阴影，虚线轮廓仅作设计期边界提示 */
+.vd-form-border-0 {
+  border-radius: 0;
+  box-shadow: 0 0 0 1px transparent;
+  outline: 1px dashed var(--vd-form-border, #9ca3af);
+  outline-offset: 0;
+}
+.vd-form-border-0.vd-form-wrapper-selected {
+  outline: 1px dashed var(--accent);
+}
+/* 1 单线边框 / 4 工具窗：直角细边 */
+.vd-form-border-1,
+.vd-form-border-4 {
+  border-radius: 0;
+}
+/* 3 对话框边框：直角 + 粗描边模拟 DLGMODALFRAME */
+.vd-form-border-3 {
+  border-radius: 0;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.2), 0 0 0 3px var(--vd-form-title-bg, #e9edf2), 0 0 0 4px var(--vd-form-border, #9ca3af);
+}
+
+/* 工具窗标题栏（边框=4/5）：更窄、小字、无图标 */
+.vd-form-titlebar-tool {
+  height: 22px;
+  padding: 0 4px 0 8px;
+}
+.vd-form-titlebar-tool .vd-form-titlebar-text {
+  font-size: 11px;
+}
+.vd-form-titlebar-tool .vd-form-btn {
+  width: 30px;
+  height: 22px;
+  font-size: 9px;
+}
+.vd-form-titlebar-tool .vd-form-titlebar-btns {
+  margin-right: -4px;
+}
+
+/* 最大化/最小化按钮被禁用（属性=假但另一个=真）：灰显 */
+.vd-form-btn-off {
+  opacity: 0.35;
+}
+
+/* 窗口本体层（标题栏+客户区）：承载「外形」裁剪，尺寸由内容撑开；调整句柄在其外部不被裁 */
+.vd-form-body {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* 外形（窗口「外形」属性）：1 圆角矩形 / 2 椭圆形（0 矩形不加类由默认矩形） —
+   置于边框样式规则之后，同特异性下覆盖边框的 border-radius:0 */
+.vd-form-shape-1 {
+  border-radius: var(--vd-form-corner-radius, 14px);
+}
+.vd-form-shape-2 {
+  border-radius: 50%;
+}
+/* 仅本体层做溢出裁剪，把标题栏/画布的方角切成外形轮廓 */
+.vd-form-body.vd-form-shape-1,
+.vd-form-body.vd-form-shape-2 {
+  overflow: hidden;
+}
+
+/* 窗口标题栏 (Win11) */
+.vd-form-titlebar {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  background: var(--vd-form-title-bg, #e9edf2);
+  padding: 0 12px 0 12px;
+  gap: 8px;
+  -webkit-user-select: none;
+  user-select: none;
+  border-bottom: 1px solid var(--vd-form-border, #9ca3af);
+}
+
+.vd-form-titlebar-icon {
+  font-size: 14px;
+  color: var(--vd-form-title-text, #111827);
+  display: flex;
+  align-items: center;
+}
+.vd-form-titlebar-icon-img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  display: block;
+}
+
+.vd-form-titlebar-text {
+  flex: 1;
+  color: var(--vd-form-title-text, #111827);
+  font-size: 12px;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vd-form-titlebar-btns {
+  display: flex;
+  gap: 0;
+  margin-right: -12px;
+}
+
+.vd-form-btn {
+  width: 46px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--vd-form-title-text, #111827);
+  cursor: default;
+  border-radius: 0;
+  transition: background 0.1s;
+}
+.vd-form-btn:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+.vd-form-btn-close:hover {
+  background: var(--danger);
+  color: var(--danger-contrast);
+}
+
+/* 窗口客户区（画布） */
+.vd-form-canvas {
+  position: relative;
+  width: var(--vd-form-width, 0px);
+  height: var(--vd-form-height, 0px);
+  background: var(--vd-form-canvas-bg, #f4f6f8);
+  border: none;
+  border-top: none;
+  overflow: hidden;
+  /* 网格点 */
+  background-image:
+    radial-gradient(circle, var(--vd-form-grid, #c5c9d1) 0.5px, transparent 0.5px);
+  background-size: 8px 8px;
+  background-position: 4px 4px;
+}
+
+/* 底图：按「底图方式」显示，覆盖网格（图片层用 CSS 变量，网格层恒定） */
+.vd-form-canvas-bgimage {
+  background-image:
+    var(--vd-form-bg-image, none),
+    radial-gradient(circle, var(--vd-form-grid, #c5c9d1) 0.5px, transparent 0.5px);
+  background-size: var(--vd-form-bg-size, 100% 100%), 8px 8px;
+  background-position: var(--vd-form-bg-position, 0 0), 4px 4px;
+  background-repeat: var(--vd-form-bg-repeat, no-repeat), repeat;
+}
+
+.vd-crosshair {
+  cursor: crosshair;
+}
+/* 工具箱选了待放置控件时，画布上的控件不接收鼠标——事件穿透到画布：
+   ①光标保持十字（不被控件自身光标覆盖）②mousedown 只触发画布一次，铺满窗口的控件（如拉满整窗的图片框）
+   不再吃掉事件、新控件能直接画在它上面（也不会因在控件里转发画布逻辑而双触发画出两个控件）。
+   未选工具时（无 .vd-crosshair）控件照常可选中/拖动/右键。 */
+.vd-crosshair .vd-control {
+  pointer-events: none;
+}
+
+/* 拖拽绘制预览矩形 */
+.vd-draw-preview {
+  position: absolute;
+  left: var(--vd-draw-left, 0px);
+  top: var(--vd-draw-top, 0px);
+  width: var(--vd-draw-width, 0px);
+  height: var(--vd-draw-height, 0px);
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.7;
+}
+
+.vd-align-guide {
+  position: absolute;
+  pointer-events: none;
+  z-index: 9000;
+  opacity: 0.95;
+}
+
+.vd-align-guide-v {
+  left: var(--vd-guide-x, 0px);
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--text-accent);
+}
+
+.vd-align-guide-h {
+  top: var(--vd-guide-y, 0px);
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--text-accent);
+}
+
+.vd-marquee-selection {
+  position: absolute;
+  left: var(--vd-marquee-left, 0px);
+  top: var(--vd-marquee-top, 0px);
+  width: var(--vd-marquee-width, 0px);
+  height: var(--vd-marquee-height, 0px);
+  box-sizing: border-box;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  pointer-events: none;
+  z-index: 9500;
+}
+
+/* 控件容器 */
+.vd-control {
+  position: absolute;
+  left: var(--vd-control-left, 0px);
+  top: var(--vd-control-top, 0px);
+  width: var(--vd-control-width, 0px);
+  height: var(--vd-control-height, 0px);
+  cursor: move;
+}
+
+.vd-preview {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  /* 控件「字体」属性经 .vd-control 上的变量注入；未设时回落默认外观 */
+  font-size: var(--vd-control-font-size, 12px);
+  font-family: var(--vd-control-font-family, var(--font-family));
+  font-weight: var(--vd-control-font-weight, normal);
+  font-style: var(--vd-control-font-style, normal);
+  text-decoration: var(--vd-control-font-deco, none);
+  color: var(--vd-control-color, inherit);
+  overflow: hidden;
+}
+
+.vd-preview-button {
+  display: flex;
+  align-items: var(--vd-preview-align-items, center);
+  justify-content: var(--vd-preview-justify, center);
+  background: var(--vd-preview-bg, var(--bg-input));
+  border: 1px solid var(--vd-preview-border, var(--border-color));
+  border-radius: 3px;
+  /* 字体文本颜色优先，否则控件前景色 */
+  color: var(--vd-control-color, var(--vd-preview-text, var(--text-primary)));
+  cursor: default;
+  padding: 2px 4px;
+  overflow: hidden;
+}
+/* 类型=默认：加粗深色边框（Win32 默认按钮外观） */
+.vd-preview-button-default {
+  border-width: 2px;
+  border-color: var(--accent, #0078d4);
+}
+.vd-preview-button-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.vd-preview-input {
+  background: var(--vd-preview-bg, #ffffff);
+  border: 1px solid var(--vd-preview-border, var(--border-color));
+  padding: 2px 4px;
+  color: var(--vd-preview-text, var(--text-primary));
+  text-align: var(--vd-preview-align, left);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.vd-preview-input-multiline {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 调节器：编辑框右侧上下箭头（有调节器时显示） */
+.vd-preview-input-spin {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+}
+.vd-preview-input-spin .vd-preview-input-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  align-self: center;
+  text-overflow: ellipsis;
+}
+.vd-preview-spin {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 13px;
+  margin: -2px -4px -2px 3px;
+  border-left: 1px solid var(--vd-preview-border, var(--border-color));
+}
+.vd-preview-spin-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+  line-height: 1;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary, #e8e8e8);
+}
+.vd-preview-spin-btn:first-child {
+  border-bottom: 1px solid var(--vd-preview-border, var(--border-color));
+}
+
+.vd-preview-input-borderless {
+  border-color: transparent;
+}
+
+.vd-preview-input-sunken {
+  border-style: inset;
+  border-width: 2px;
+}
+
+.vd-preview-label {
+  display: flex;
+  align-items: var(--vd-preview-align-items, flex-start);
+  justify-content: var(--vd-preview-justify, flex-start);
+  color: var(--vd-preview-text, var(--text-primary));
+  background: var(--vd-preview-bg, transparent);
+  /* 自动折行按「是否自动折行」属性渲染（默认 nowrap 不折行，与运行时 STATIC 一致）：设计时所见即运行所得 */
+  white-space: var(--vd-preview-wrap, nowrap);
+  overflow: hidden;
+}
+.vd-preview-label.vd-preview-label-sunken { border: 1px solid; border-color: var(--vd-border-dark, #808080) var(--vd-border-light, #fff) var(--vd-border-light, #fff) var(--vd-border-dark, #808080); }
+.vd-preview-label.vd-preview-label-raised { border: 1px solid; border-color: var(--vd-border-light, #fff) var(--vd-border-dark, #808080) var(--vd-border-dark, #808080) var(--vd-border-light, #fff); }
+.vd-preview-label.vd-preview-label-bordered { border: 1px solid var(--vd-border-dark, #808080); }
+
+/* 网页按钮/网页编辑框预览：与 lib/webview2/impl/windows.cpp 的 HTML 模板样式一致，改动需双侧同步 */
+.vd-preview-webbutton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #4f8cff, #2f6fe0);
+  color: #fff;
+  font: 14px 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+
+.vd-preview-webedit {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  padding: 0 10px;
+  font: 14px 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  color: #1f2430;
+  background: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.vd-preview-webview {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+/* 设计期网页所见即所得：iframe 只做展示，鼠标事件交给画布处理控件选择/拖拽 */
+.vd-preview-webview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  pointer-events: none;
+  background: #ffffff;
+}
+
+.vd-preview-webview-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.vd-preview-webview-url {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 1px 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-secondary, #252526) 85%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.vd-preview-image {
+  background: var(--vd-preview-bg, var(--bg-primary));
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-disabled);
+  overflow: hidden;
+}
+.vd-preview-image.vd-preview-label-sunken,
+.vd-preview-image.vd-preview-label-raised,
+.vd-preview-image.vd-preview-label-bordered { border: none; }
+.vd-preview-shape {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.vd-preview-drawpanel {
+  width: 100%;
+  height: 100%;
+  background-color: var(--vd-preview-bg, var(--bg-primary));
+  background-image: var(--vd-preview-bgimg, none);
+  background-repeat: var(--vd-preview-bgrepeat, no-repeat);
+  background-position: var(--vd-preview-bgpos, left top);
+  background-size: var(--vd-preview-bgsize, auto);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  position: relative;
+}
+.vd-preview-drawpanel.vd-preview-label-sunken { border: 1px solid; border-color: var(--vd-border-dark, #808080) var(--vd-border-light, #fff) var(--vd-border-light, #fff) var(--vd-border-dark, #808080); }
+.vd-preview-drawpanel.vd-preview-label-raised { border: 1px solid; border-color: var(--vd-border-light, #fff) var(--vd-border-dark, #808080) var(--vd-border-dark, #808080) var(--vd-border-light, #fff); }
+.vd-preview-drawpanel.vd-preview-label-bordered { border: 1px solid var(--vd-border-dark, #808080); }
+.vd-preview-drawpanel-label {
+  position: absolute;
+  left: 3px;
+  top: 2px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-disabled);
+  opacity: 0.55;
+  pointer-events: none;
+  user-select: none;
+}
+
+.vd-preview-list {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.vd-preview-combo {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding-left: 4px;
+  color: var(--text-primary);
+}
+
+.vd-preview-combo-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vd-preview-combo-arrow {
+  width: 18px;
+  text-align: center;
+  border-left: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.vd-preview-check-like {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--vd-preview-text, var(--text-primary));
+  background: var(--vd-preview-bg, transparent);
+}
+.vd-preview-check-like.vd-preview-check-leftcap {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+.vd-preview-checkbox.vd-preview-check-on,
+.vd-preview-radio.vd-preview-check-on {
+  background: var(--accent-color, #0a68d8);
+  border-color: var(--accent-color, #0a68d8);
+  box-shadow: inset 0 0 0 2px var(--bg-primary);
+}
+
+.vd-preview-checkbox,
+.vd-preview-radio {
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.vd-preview-radio {
+  border-radius: 50%;
+}
+
+.vd-preview-group {
+  border: 1px solid var(--button-secondary-border);
+  border-radius: 3px;
+  padding-top: 14px;
+  position: relative;
+  background: var(--vd-preview-bg, transparent);
+}
+
+.vd-preview-group-title {
+  position: absolute;
+  top: -8px;
+  left: 8px;
+  right: 8px;
+  text-align: var(--vd-preview-group-textalign, left);
+  background: var(--bg-primary);
+  padding: 0 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.vd-preview-ycui-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--vd-preview-bg, var(--bg-input));
+  border: 1px solid var(--vd-preview-border, var(--border-color));
+  border-radius: var(--vd-preview-radius, 4px);
+  color: var(--vd-preview-text, var(--text-primary));
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.vd-preview-progress {
+  /* Win32 固定观感：不随 IDE 主题（深色主题下 --bg-hover 会把槽画成近黑） */
+  background: #e6e6e6;
+  border: 1px solid #bcbcbc;
+}
+
+.vd-preview-progress-fill {
+  width: var(--vd-preview-fill, 40%);
+  height: 100%;
+  background: linear-gradient(180deg, #2fd352 0%, #06b025 100%);
+}
+.vd-preview-progress-vert { display: flex; align-items: flex-end; }
+.vd-preview-progress-vert .vd-preview-progress-fill { width: 100%; height: var(--vd-preview-fill, 40%); }
+.vd-preview-progress-fill-blocks { background: repeating-linear-gradient(90deg, #06b025 0, #06b025 8px, transparent 8px, transparent 10px); }
+.vd-preview-progress-vert .vd-preview-progress-fill-blocks { background: repeating-linear-gradient(0deg, #06b025 0, #06b025 8px, transparent 8px, transparent 10px); }
+/* 滑块条 */
+.vd-preview-slider { background: transparent; }
+/* 滚动条 */
+.vd-preview-scrollbar { display: flex; align-items: stretch; background: #f0f0f0; overflow: hidden; font-size: 8px; }
+.vd-preview-scrollbar-vert { flex-direction: column; }
+.vd-preview-scrollbar-btn { display: flex; align-items: center; justify-content: center; color: #505050; background: #f0f0f0; flex-shrink: 0; min-width: 12px; min-height: 12px; }
+.vd-preview-scrollbar-track { position: relative; flex: 1; overflow: hidden; }
+.vd-preview-scrollbar-thumb { position: absolute; background: #cdcdcd; border-radius: 2px; }
+.vd-preview-scrollbar:not(.vd-preview-scrollbar-vert) .vd-preview-scrollbar-thumb { top: 1px; bottom: 1px; left: var(--vd-preview-thumb-pos, 0); width: var(--vd-preview-thumb-size, 30%); }
+.vd-preview-scrollbar-vert .vd-preview-scrollbar-thumb { left: 1px; right: 1px; top: var(--vd-preview-thumb-pos, 0); height: var(--vd-preview-thumb-size, 30%); }
+/* 月历 */
+.vd-preview-monthcal { display: flex; flex-direction: column; background: #fff; color: #000; border: 1px solid #bcbcbc; overflow: hidden; font-size: 9px; }
+.vd-preview-monthcal-title { text-align: center; background: #2a6099; color: #fff; padding: 1px 0; font-size: 9px; }
+.vd-preview-monthcal-grid { display: grid; grid-template-columns: repeat(7, 1fr); flex: 1; }
+.vd-preview-monthcal-head { text-align: center; color: #888; font-size: 8px; }
+.vd-preview-monthcal-day { text-align: center; font-size: 8px; }
+.vd-preview-monthcal-today { outline: 1px solid #c00; border-radius: 50%; }
+/* 列表框 */
+.vd-preview-listbox { display: flex; flex-direction: column; background: var(--vd-preview-bg, #fff); color: var(--vd-preview-text, #000); border: 1px solid var(--vd-preview-border, #828790); overflow: hidden; }
+.vd-preview-listbox-item { padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; line-height: 1.4; }
+.vd-preview-listbox-item-sel { background: #2a6099; color: #fff; }
+/* 选择夹 */
+.vd-preview-tab { display: flex; flex-direction: column; }
+.vd-preview-tab-headers { display: flex; gap: 1px; }
+.vd-preview-tab-header { padding: 1px 8px; font-size: 11px; color: #000; background: #f0f0f0; border: 1px solid #bcbcbc; border-bottom: none; border-radius: 3px 3px 0 0; }
+.vd-preview-tab-header-active { background: #fdfdfd; font-weight: 600; }
+.vd-preview-tab-body { flex: 1; border: 1px solid #bcbcbc; }
+
+.vd-preview-compact {
+  background: var(--bg-input);
+  border: 1px dashed var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-disabled);
+  font-size: 10px;
+}
+
+.vd-preview-default {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.vd-control-selected {
+  outline: 1px dashed var(--accent);
+  outline-offset: 1px;
+}
+
+.vd-control-multi-selected {
+  outline: 1px dashed var(--accent);
+  outline-offset: 1px;
+}
+
+.vd-control-hovered {
+  outline: 1px solid color-mix(in srgb, var(--accent) 82%, var(--text-primary));
+  outline-offset: 1px;
+}
+
+/* 缩放句柄 */
+.vd-handle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent);
+  z-index: 10;
+}
+
+.vd-handle-nw { top: -3px; left: -3px; cursor: nw-resize; }
+.vd-handle-n  { top: -3px; left: 50%; margin-left: -3px; cursor: n-resize; }
+.vd-handle-ne { top: -3px; right: -3px; cursor: ne-resize; }
+.vd-handle-w  { top: 50%; left: -3px; margin-top: -3px; cursor: w-resize; }
+.vd-handle-e  { top: 50%; right: -3px; margin-top: -3px; cursor: e-resize; }
+.vd-handle-sw { bottom: -3px; left: -3px; cursor: sw-resize; }
+.vd-handle-s  { bottom: -3px; left: 50%; margin-left: -3px; cursor: s-resize; }
+.vd-handle-se { bottom: -3px; right: -3px; cursor: se-resize; }
+
+/* 窗口调整大小句柄（相对于 vd-form-wrapper） */
+.vd-form-handle-e  { top: 50%; right: -4px; margin-top: -3px; cursor: e-resize; z-index: 20; }
+.vd-form-handle-s  { bottom: -4px; left: 50%; margin-left: -3px; cursor: s-resize; z-index: 20; }
+.vd-form-handle-se { bottom: -4px; right: -4px; cursor: se-resize; z-index: 20; }
+
+.vd-toolbox-empty {
+  padding: 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* ===== 右键菜单（照易语言窗体设计器） ===== */
+.vd-ctx-menu {
+  position: fixed;
+  left: var(--vd-ctx-left, 0px);
+  top: var(--vd-ctx-top, 0px);
+  z-index: 10000; /* 高于浮动工具箱(9000)/缩放菜单(9999)，避免被盖住 */
+  min-width: 200px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 4px;
+  background: var(--menu-bg, var(--bg-secondary, #252526));
+  box-shadow: 0 8px 20px var(--menu-shadow, rgba(0, 0, 0, 0.45));
+  user-select: none;
+}
+.vd-ctx-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--menu-text, var(--text-primary, #d4d4d4));
+  text-align: left;
+  padding: 5px 12px 5px 6px;
+  font-size: 12px;
+  line-height: 1.25;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  border-radius: 3px;
+}
+.vd-ctx-item:hover:not(:disabled) {
+  background: var(--menu-hover, color-mix(in srgb, var(--accent, #4f8cff) 24%, transparent));
+}
+.vd-ctx-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.vd-ctx-accel {
+  flex: 0 0 auto;
+  width: 15px;
+  text-align: left;
+}
+.vd-ctx-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.vd-ctx-shortcut {
+  flex: 0 0 auto;
+  margin-left: 28px;
+  color: var(--menu-text-secondary, color-mix(in srgb, var(--menu-text, var(--text-primary, #d4d4d4)) 60%, transparent));
+  text-align: right;
+}
+.vd-ctx-arrow {
+  flex: 0 0 auto;
+  margin-left: 24px;
+  font-size: 9px;
+  opacity: 0.8;
+}
+.vd-ctx-sep {
+  height: 1px;
+  margin: 3px 6px;
+  background: var(--menu-divider, color-mix(in srgb, var(--border-color, #3c3c3c) 72%, transparent));
+}
+.vd-ctx-subwrap {
+  position: relative;
+  display: flex;
+}
+.vd-ctx-subwrap .vd-ctx-item {
+  width: 100%;
+}
+.vd-ctx-submenu {
+  position: absolute;
+  left: calc(100% - 2px);
+  top: -5px;
+  min-width: 128px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 4px;
+  background: var(--menu-bg, var(--bg-secondary, #252526));
+  box-shadow: 0 8px 20px var(--menu-shadow, rgba(0, 0, 0, 0.45));
+}
+
+/* ===== 「查看数据类型定义」弹框 ===== */
+.vd-typeinfo-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+.vd-typeinfo-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 86vw);
+  max-height: 76vh;
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 6px;
+  background: var(--bg-secondary, #252526);
+  color: var(--text-primary, #d4d4d4);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  font-size: 12px;
+}
+.vd-typeinfo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color, #3c3c3c);
+}
+.vd-typeinfo-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.vd-typeinfo-close {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #9a9a9a);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.vd-typeinfo-close:hover {
+  color: var(--text-primary, #d4d4d4);
+}
+.vd-typeinfo-meta {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--menu-divider, color-mix(in srgb, var(--border-color, #3c3c3c) 60%, transparent));
+  color: var(--text-secondary, #9a9a9a);
+}
+.vd-typeinfo-desc {
+  margin-top: 4px;
+  color: var(--text-primary, #d4d4d4);
+}
+.vd-typeinfo-body {
+  padding: 8px 12px 12px;
+  overflow: auto;
+}
+.vd-typeinfo-section-title {
+  margin: 8px 0 4px;
+  font-weight: 600;
+  color: var(--accent, #4f8cff);
+}
+.vd-typeinfo-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.vd-typeinfo-table th,
+.vd-typeinfo-table td {
+  text-align: left;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--menu-divider, color-mix(in srgb, var(--border-color, #3c3c3c) 45%, transparent));
+  vertical-align: top;
+}
+.vd-typeinfo-table th {
+  color: var(--text-secondary, #9a9a9a);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.vd-typeinfo-empty {
+  color: var(--text-secondary, #9a9a9a);
+  padding: 2px 0 4px;
+}
+
+/* ===== 设计器菜单栏（画布上渲染窗口菜单；双击菜单项生成 _名_被选择 事件） ===== */
+.vd-fmenu-bar {
+  display: flex;
+  align-items: stretch;
+  height: 22px;
+  background: #f3f3f3;
+  border-bottom: 1px solid #d0d0d0;
+  color: #1f1f1f;
+  font-size: 12px;
+  user-select: none;
+}
+.vd-fmenu-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  cursor: default;
+}
+.vd-fmenu-top:hover,
+.vd-fmenu-top-open { background: #d8e6ff; }
+.vd-fmenu-disabled { opacity: 0.45; }
+.vd-fmenu-dropdown {
+  position: absolute;
+  z-index: 100;
+  min-width: 150px;
+  padding: 3px 0;
+  background: #ffffff;
+  border: 1px solid #c0c0c0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  color: #1f1f1f;
+  text-align: left;
+}
+.vd-fmenu-top > .vd-fmenu-dropdown { top: 100%; left: 0; }
+.vd-fmenu-item > .vd-fmenu-dropdown { top: -4px; left: 100%; display: none; }
+.vd-fmenu-item:hover > .vd-fmenu-dropdown { display: block; }
+.vd-fmenu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 12px 3px 16px;
+  white-space: nowrap;
+  cursor: default;
+}
+.vd-fmenu-item:hover { background: #d8e6ff; }
+.vd-fmenu-caption { flex: 1 1 auto; }
+.vd-fmenu-shortcut { flex: 0 0 auto; color: #888888; }
+.vd-fmenu-arrow { flex: 0 0 auto; font-size: 9px; }
+.vd-fmenu-sep { height: 1px; margin: 3px 6px; background: #dcdcdc; }
+
+/* 锁定控件：右上角小锁标记，禁止拖动/缩放的视觉提示 */
+.vd-control-locked::after {
+  content: '🔒';
+  position: absolute;
+  top: 0;
+  right: 1px;
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* 设计画布内的图片禁止浏览器原生拖拽（HTML <img> 默认 draggable）：
+   在按钮/图片框的图片上按下拖动会启动原生 DnD，拖出图片幽灵并**吃掉 mousemove**——
+   控件不跟手、松手才瞬移到位，且拖动状态残留（要再点一下才恢复）。用户报障 2026-07-21。
+   CSS 一处覆盖画布内所有图片（含未来新增的控件预览图），不必逐个 <img> 加 draggable={false}。 */
+.vd-canvas-area img,
+.vd-canvas-area [style*="background-image"] {
+  -webkit-user-drag: none;
+  user-select: none;
+}

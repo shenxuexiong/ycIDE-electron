@@ -1,0 +1,1411 @@
+/**
+ * 支持库管理器（ycmd 版）
+ * 扫描 lib 目录中的 *.ycmd.json 清单，并补充窗口单元元数据。
+ */
+import { getRuntimeEnv } from './runtimeEnv'
+import { createHash } from 'crypto'
+import AdmZip from 'adm-zip'
+import { dirname, isAbsolute, join, normalize, resolve } from 'path'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'fs'
+import { getYcmdCommands, scanYcmdRegistry, invalidateYcmdRegistryCache, type YcmdResolvedCommand, type YcmdTargetPlatform } from './ycmd-registry'
+import {
+  STORE_PLATFORM_ORDER,
+  type InstalledLibraryState,
+  type LibraryInstallResult,
+  type LibraryInstallSource,
+  type LibraryInstallStateFile,
+  type LibraryPackageEntry,
+  type LibraryRemoteIndex,
+  type LibraryRemoteIndexResult,
+  type LibraryRemoveResult,
+  type Platform,
+  type StoreLibraryCard,
+} from '../shared/library-store'
+
+export interface LibraryParam {
+  name: string
+  type: string
+  description: string
+  optional: boolean
+  isVariable: boolean
+  isArray: boolean
+  repeatable?: boolean
+}
+
+export interface LibraryCommand {
+  name: string
+  englishName: string
+  description: string
+  returnType: string
+  category: string
+  supportedPlatforms?: string[]
+  params: LibraryParam[]
+  isHidden: boolean
+  isMember: boolean
+  ownerTypeName: string
+  commandIndex: number
+  nativeSymbol?: string
+  libraryName: string
+  libraryFileName: string
+  source: 'ycmd' | 'core'
+  manifestPath: string
+}
+
+export interface LibraryDataType {
+  name: string
+  englishName: string
+  description: string
+  isWindowUnit: boolean
+}
+
+export interface LibraryConstant {
+  name: string
+  englishName: string
+  description: string
+  type: 'null' | 'number' | 'bool' | 'text'
+  value: string
+}
+
+export interface LibraryWindowUnitProperty {
+  name: string
+  englishName: string
+  description: string
+  type: number
+  typeName: string
+  isReadOnly: boolean
+  pickOptions: string[]
+  defaultValue?: string | number | boolean
+}
+
+export interface LibraryWindowUnitEventArg {
+  name: string
+  description: string
+  dataType: string
+  isByRef: boolean
+}
+
+export interface LibraryWindowUnitEvent {
+  name: string
+  description: string
+  /** 事件处理子程序的返回类型（如「逻辑型」，空=无返回值）；驱动生成 .子程序 存根的返回类型字段 */
+  returnType: string
+  args: LibraryWindowUnitEventArg[]
+}
+
+export interface LibraryWindowUnit {
+  name: string
+  englishName: string
+  description: string
+  className: string
+  style: string
+  iconFileName?: string
+  properties: LibraryWindowUnitProperty[]
+  events: LibraryWindowUnitEvent[]
+  libraryName: string
+  /** 是否来自核心支持库（krnln）；工具箱第一层「核心组件 / 第三方组件」的判定依据 */
+  isCore: boolean
+  /** 组件箱分类·第二层「型」（Win32控件 / GDI控件 / WebView2控件 / 功能组件…），设计器工具箱分组显示 */
+  toolboxCategory: string
+}
+
+/** 工具箱第二层「型」缺省值：有窗口类名的可视控件默认归 Win32控件 */
+export const DEFAULT_TOOLBOX_CATEGORY = 'Win32控件'
+/** GDI 自绘控件分类 */
+const TOOLBOX_CATEGORY_GDI = 'GDI控件'
+/** 非可视功能组件分类（无窗口类名，如时钟 / 通用对话框 / 菜单 / 字体等） */
+const TOOLBOX_CATEGORY_FUNCTIONAL = '功能组件'
+/** 核心库中按 GDI 自绘的组件（英文名）——画板 DrawPanel、外形框 ShapeBox */
+const CORE_GDI_UNIT_ENGLISH_NAMES = new Set(['DrawPanel', 'ShapeBox'])
+/** 旧分类值 → 新「型」名的归一化映射（兼容早期 manifest 声明） */
+const TOOLBOX_CATEGORY_ALIASES: Record<string, string> = {
+  '通用Win32': 'Win32控件',
+  'WebView2': 'WebView2控件',
+}
+
+/** 归一化工具箱「型」名：去空白 + 旧值别名映射；空串表示未声明 */
+function normalizeToolboxCategory(value: unknown): string {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!text) return ''
+  return TOOLBOX_CATEGORY_ALIASES[text] || text
+}
+
+/**
+ * 定稿窗口组件的工具箱「型」（第二层分类）。
+ * 优先级：单元显式声明 > 无窗口类名判「功能组件」 > 核心库 GDI 名单判「GDI控件」 > 缺省「Win32控件」。
+ * 第三方支持库通过在 windowUnits[].toolboxCategory 显式声明自己的型（如「WebView2控件」）即可自动归入对应子分类。
+ */
+function resolveToolboxCategory(params: {
+  explicit: unknown
+  className: string
+  englishName: string
+  isCore: boolean
+}): string {
+  const explicit = normalizeToolboxCategory(params.explicit)
+  if (explicit) return explicit
+  if (!params.className.trim()) return TOOLBOX_CATEGORY_FUNCTIONAL
+  if (params.isCore && CORE_GDI_UNIT_ENGLISH_NAMES.has(params.englishName)) return TOOLBOX_CATEGORY_GDI
+  return DEFAULT_TOOLBOX_CATEGORY
+}
+
+export interface LibraryInfo {
+  name: string
+  guid: string
+  version: string
+  description: string
+  author: string
+  zipCode: string
+  address: string
+  phone: string
+  qq: string
+  email: string
+  homePage: string
+  otherInfo: string
+  fileName: string
+  commands: LibraryCommand[]
+  dataTypes: LibraryDataType[]
+  constants: LibraryConstant[]
+  windowUnits: LibraryWindowUnit[]
+}
+
+export interface LibraryItem {
+  name: string
+  filePath: string
+  loaded: boolean
+  isCore: boolean
+  source?: LibraryInstallSource
+  libName?: string
+  version?: string
+  cmdCount?: number
+  dtCount?: number
+}
+
+export interface LoadResult {
+  success: boolean
+  info: LibraryInfo | null
+  error?: string
+}
+
+interface LibraryMetadataFile {
+  guid?: string
+  description?: string
+  author?: string
+  qq?: string
+  email?: string
+  homePage?: string
+  otherInfo?: string
+  dataTypes?: unknown
+  constants?: unknown
+  windowUnits?: unknown
+  controlBindings?: unknown
+  eventBindings?: unknown
+}
+
+interface LibraryProtocolControlBinding {
+  unit: string
+  unitEnglishName: string
+  className: string
+  style: string
+  toolboxCategory: string
+}
+
+interface LibraryProtocolEventBinding {
+  unit: string
+  event: string
+}
+
+interface LibraryUnitIconIndexItem {
+  eName: string
+  cName: string
+  iCons: string
+}
+
+interface ParsedLibraryMetadata {
+  guid: string
+  description: string
+  author: string
+  qq: string
+  email: string
+  homePage: string
+  otherInfo: string
+  dataTypes: LibraryDataType[]
+  constants: LibraryConstant[]
+  windowUnits: LibraryWindowUnit[]
+}
+
+const CORE_LIBRARY_NAME = '系统核心支持库'
+const CORE_LIBRARY_FILE_NAME = 'krnln'
+const CORE_LIBRARY_GUID = 'D09F2340818511D396F6AE4C17150413'
+
+const CORE_LIBRARY_EXPECTED_SHA256: Record<string, string> = {
+  'impl/linux.cpp': '088edd74d09dac6c9e70da4feed932e3e0d4aceba36b6aab5d9fb152077aef34',
+  'impl/macos.mm': '798149470018bf45a3e996d82db1db41f473f6a6aca2fd3badf7b8ad1538b4ac',
+  'impl/pinyin-table.inc': 'dd70222f361e247007abaa4a5c441d9be2f5d54bfa89a777624ef2a52c93f504',
+  'impl/windows.cpp': '1082f4cb6d425c1abe1f04759439b3246c662cbd96786b0cd999f09734778607',
+  'krnln.commands.ycmd.json': '1fcc2456595ff17225d2f35683fa501f4fda1d44f648fa7eb904496cc427981d',
+  'krnln.constants.json': 'f351e8dfb8a4f3d47c1e02e015ee37b5fe3ada180983084a422ff08c43b8a9a2',
+  'krnln.library.json': '718281c7fa906179767dbc9d2508b967a456b3deff3a661e6fcbf6abc0eb5bb1',
+  'window-units.json': '409d53730b6a0b2a4865e070a10a42f9373b430f015acc89a5e7be959f1ab6c4',
+}
+
+const DEFAULT_PROTOCOL_UNIT_PROPERTIES: LibraryWindowUnitProperty[] = [
+  { name: '标题', englishName: 'text', description: '控件显示文本。', type: 0, typeName: '文本型', isReadOnly: false, pickOptions: [] },
+  { name: '左边', englishName: 'left', description: '控件左边位置。', type: 0, typeName: '整数型', isReadOnly: false, pickOptions: [] },
+  { name: '顶边', englishName: 'top', description: '控件顶边位置。', type: 0, typeName: '整数型', isReadOnly: false, pickOptions: [] },
+  { name: '宽度', englishName: 'width', description: '控件宽度。', type: 0, typeName: '整数型', isReadOnly: false, pickOptions: [] },
+  { name: '高度', englishName: 'height', description: '控件高度。', type: 0, typeName: '整数型', isReadOnly: false, pickOptions: [] },
+  { name: '标记', englishName: 'tag', description: '控件标记文本。', type: 0, typeName: '文本型', isReadOnly: false, pickOptions: [] },
+  { name: '可视', englishName: 'visible', description: '是否可见。', type: 0, typeName: '逻辑型', isReadOnly: false, pickOptions: [] },
+  { name: '禁止', englishName: 'disable', description: '是否禁用。', type: 0, typeName: '逻辑型', isReadOnly: false, pickOptions: [] },
+  { name: '鼠标指针', englishName: 'MousePointer', description: '鼠标指针类型。', type: 0, typeName: '整数型', isReadOnly: false, pickOptions: [] },
+]
+
+const FIXED_COMMON_UNIT_PROPERTIES: LibraryWindowUnitProperty[] = [
+  { name: '标题', englishName: 'text', description: '控件显示文本。', type: 0, typeName: '文本型', isReadOnly: false, pickOptions: [] },
+  { name: '左边', englishName: 'left', description: '控件左边位置。', type: 0, typeName: '整数型', isReadOnly: false, pickOptions: [] },
+  { name: '顶边', englishName: 'top', description: '控件顶边位置。', type: 0, typeName: '整数型', isReadOnly: false, pickOptions: [] },
+  { name: '宽度', englishName: 'width', description: '控件宽度。', type: 0, typeName: '整数型', isReadOnly: false, pickOptions: [] },
+  { name: '高度', englishName: 'height', description: '控件高度。', type: 0, typeName: '整数型', isReadOnly: false, pickOptions: [] },
+  { name: '标记', englishName: 'tag', description: '控件标记文本。', type: 0, typeName: '文本型', isReadOnly: false, pickOptions: [] },
+  { name: '可视', englishName: 'visible', description: '是否可见。', type: 0, typeName: '逻辑型', isReadOnly: false, pickOptions: [] },
+  { name: '禁止', englishName: 'disable', description: '是否禁用。', type: 0, typeName: '逻辑型', isReadOnly: false, pickOptions: [] },
+  {
+    name: '鼠标指针',
+    englishName: 'MousePointer',
+    description: '鼠标指针类型。',
+    type: 0,
+    typeName: '选择整数',
+    isReadOnly: false,
+    pickOptions: [
+      '0.默认型',
+      '1.标准箭头型',
+      '2.十字型',
+      '3.文本编辑型',
+      '4.沙漏型',
+      '5.箭头问号型',
+      '6.箭头及沙漏型',
+      '7.禁止符型',
+      '8.四向箭头型',
+      '9.北向箭头型',
+      '10.北<->南箭头型',
+      '11.东<->西箭头型',
+      '12.西北<->东南箭头型',
+      '13.东北<->西南箭头型',
+      '14.手型',
+      '15.自定义型',
+    ],
+  },
+]
+
+function mergeWithFixedCommonProperties(properties: LibraryWindowUnitProperty[]): LibraryWindowUnitProperty[] {
+  const byName = new Map(properties.map(item => [item.name, item]))
+  const fixedNames = new Set(FIXED_COMMON_UNIT_PROPERTIES.map(item => item.name))
+
+  const merged: LibraryWindowUnitProperty[] = FIXED_COMMON_UNIT_PROPERTIES.map(item => {
+    const fromUnit = byName.get(item.name)
+    const source = fromUnit || item
+    const pickOptions = source.pickOptions && source.pickOptions.length > 0
+      ? [...source.pickOptions]
+      : [...item.pickOptions]
+    return {
+      ...source,
+      pickOptions,
+    }
+  })
+
+  for (const item of properties) {
+    if (fixedNames.has(item.name)) continue
+    merged.push({
+      ...item,
+      pickOptions: [...(item.pickOptions || [])],
+    })
+  }
+
+  return merged
+}
+
+const LIBRARY_INSTALL_STATE_VERSION = '1.0'
+
+function normalizeLibraryId(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  return value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '')
+}
+
+function normalizeRemoteIndex(raw: unknown): LibraryRemoteIndex {
+  const input = raw && typeof raw === 'object' ? raw as Partial<LibraryRemoteIndex> : {}
+  const libraries = Array.isArray(input.libraries) ? input.libraries : []
+  return {
+    schemaVersion: typeof input.schemaVersion === 'string' && input.schemaVersion.trim() ? input.schemaVersion.trim() : '1.0',
+    updatedAt: typeof input.updatedAt === 'string' ? input.updatedAt.trim() : undefined,
+    libraries: libraries
+      .filter(item => !!item && typeof item === 'object')
+      .map(item => {
+        const id = normalizeLibraryId(item.id)
+        const packageFileName = typeof item.packageFileName === 'string' ? item.packageFileName.trim() : `${id}.zip`
+        const platforms = Array.isArray(item.supportedPlatforms)
+          ? item.supportedPlatforms.filter((platform): platform is Platform => STORE_PLATFORM_ORDER.includes(platform as Platform))
+          : []
+        return {
+          id,
+          displayName: typeof item.displayName === 'string' && item.displayName.trim() ? item.displayName.trim() : id,
+          version: typeof item.version === 'string' && item.version.trim() ? item.version.trim() : '-',
+          packageFileName,
+          packageUrl: typeof item.packageUrl === 'string' ? item.packageUrl.trim() : '',
+          packageSha256: typeof item.packageSha256 === 'string' ? item.packageSha256.trim().toLowerCase() : '',
+          size: typeof item.size === 'number' && Number.isFinite(item.size) ? item.size : undefined,
+          supportedPlatforms: platforms,
+          minYcideVersion: typeof item.minYcideVersion === 'string' ? item.minYcideVersion.trim() : undefined,
+          publishedAt: typeof item.publishedAt === 'string' ? item.publishedAt.trim() : undefined,
+          summary: typeof item.summary === 'string' ? item.summary.trim() : undefined,
+        }
+      })
+      .filter(item => item.id.length > 0 && item.packageUrl.length > 0 && item.id !== CORE_LIBRARY_FILE_NAME),
+  }
+}
+
+function sha256Buffer(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex')
+}
+
+// 解压限额：防止恶意构造的 zip 炸弹耗尽磁盘/内存
+const MAX_ZIP_ENTRIES = 5000
+const MAX_ZIP_TOTAL_BYTES = 200 * 1024 * 1024
+
+function assertSafeZipEntry(entryName: string): string {
+  const normalized = normalize(entryName.replace(/\\/g, '/')).replace(/\\/g, '/')
+  if (!normalized || normalized === '.' || isAbsolute(normalized) || normalized.startsWith('../') || normalized.includes('/../')) {
+    throw new Error(`zip 内含不安全路径: ${entryName}`)
+  }
+  return normalized
+}
+
+function normalizeTargetPlatform(value?: string): YcmdTargetPlatform | undefined {
+  if (value === 'windows' || value === 'macos' || value === 'linux' || value === 'android' || value === 'ios' || value === 'harmony') return value
+  return undefined
+}
+
+// 核心命令现已统一维护在 lib/krnln/krnln.commands.ycmd.json。
+
+class LibraryManager {
+  private libraries: LibraryItem[] = []
+  private metadataCache = new Map<string, ParsedLibraryMetadata | null>()
+  // getAllCommands 把全部已加载库的命令映射成 LibraryCommand（krnln 等库各成百上千条）开销不小，
+  // 而一次编译里 buildCommandMap / buildCommandSignatureMap / collectUsed... 会调它 4+ 次，纯 CPU 重复劳动。
+  // 按目标平台缓存结果；库集合或 ycmd 注册表变更都唯一经过 scan()，在那里统一清空即可保证正确性。
+  private allCommandsCache = new Map<string, LibraryCommand[]>()
+
+  private shouldEnforceCoreLibraryIntegrity(): boolean {
+    const { isPackaged, appVersion } = getRuntimeEnv()
+    if (!isPackaged) return false
+    const version = (appVersion || '').toLowerCase()
+    // 仅在稳定正式版强制校验，开发/预发布阶段允许核心库频繁迭代。
+    return !/(alpha|beta|rc|pre|preview|dev|canary)/.test(version)
+  }
+
+  private getConfigPath(): string {
+    return join(getRuntimeEnv().userDataPath, 'library-state.json')
+  }
+
+  private getInstalledRootPath(): string {
+    return join(getRuntimeEnv().userDataPath, 'libraries')
+  }
+
+  private getInstallStatePath(): string {
+    return join(this.getInstalledRootPath(), 'library-install-state.json')
+  }
+
+  private readInstallState(): LibraryInstallStateFile {
+    try {
+      const filePath = this.getInstallStatePath()
+      if (!existsSync(filePath)) return { schemaVersion: LIBRARY_INSTALL_STATE_VERSION, libraries: {} }
+      const raw = JSON.parse(readFileSync(filePath, 'utf-8')) as Partial<LibraryInstallStateFile>
+      const libraries = raw && typeof raw.libraries === 'object' && raw.libraries ? raw.libraries : {}
+      return { schemaVersion: LIBRARY_INSTALL_STATE_VERSION, libraries: libraries as Record<string, InstalledLibraryState> }
+    } catch {
+      return { schemaVersion: LIBRARY_INSTALL_STATE_VERSION, libraries: {} }
+    }
+  }
+
+  private writeInstallState(state: LibraryInstallStateFile): void {
+    mkdirSync(this.getInstalledRootPath(), { recursive: true })
+    writeFileSync(this.getInstallStatePath(), JSON.stringify({ schemaVersion: LIBRARY_INSTALL_STATE_VERSION, libraries: state.libraries }, null, 2), 'utf-8')
+  }
+
+  private getInstalledLibraryRoot(name: string): string {
+    return join(this.getInstalledRootPath(), normalizeLibraryId(name))
+  }
+
+  async getRemoteIndex(indexUrl: string): Promise<LibraryRemoteIndexResult> {
+    try {
+      const response = await fetch(indexUrl, { cache: 'no-store' })
+      if (!response.ok) return { ok: false, error: `读取支持库索引失败: HTTP ${response.status}` }
+      const json = await response.json()
+      return { ok: true, index: normalizeRemoteIndex(json) }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { ok: false, error: `读取支持库索引失败: ${message}` }
+    }
+  }
+
+  async installFromRemote(name: string, indexUrl: string): Promise<LibraryInstallResult> {
+    const libraryId = normalizeLibraryId(name)
+    if (!libraryId) return { ok: false, error: '支持库标识无效' }
+    if (this.isCore(libraryId)) return { ok: false, error: '核心支持库随 ycIDE 版本发布，不支持从服务器安装' }
+    const indexResult = await this.getRemoteIndex(indexUrl)
+    if (!indexResult.ok) return indexResult
+    const entry = indexResult.index.libraries.find(item => item.id === libraryId)
+    if (!entry) return { ok: false, error: `在线索引中未找到支持库 ${libraryId}` }
+    return this.installPackage(entry)
+  }
+
+  private async installPackage(entry: LibraryPackageEntry): Promise<LibraryInstallResult> {
+    const libraryId = normalizeLibraryId(entry.id)
+    if (this.isCore(libraryId)) return { ok: false, error: '核心支持库随 ycIDE 版本发布，不支持从服务器安装' }
+    const installRoot = this.getInstalledLibraryRoot(libraryId)
+    const tempRoot = join(this.getInstalledRootPath(), `.install-${libraryId}-${Date.now()}`)
+    try {
+      const response = await fetch(entry.packageUrl, { cache: 'no-store' })
+      if (!response.ok) return { ok: false, error: `下载 ${entry.displayName || libraryId} 失败: HTTP ${response.status}` }
+      const buffer = Buffer.from(await response.arrayBuffer())
+      const actualHash = sha256Buffer(buffer)
+      if (entry.packageSha256 && actualHash !== entry.packageSha256.toLowerCase()) {
+        return { ok: false, error: `支持库包校验失败: ${actualHash}` }
+      }
+
+      mkdirSync(tempRoot, { recursive: true })
+      const zip = new AdmZip(buffer)
+      const files: string[] = []
+      let totalExtractedBytes = 0
+      const entries = zip.getEntries()
+      if (entries.length > MAX_ZIP_ENTRIES) {
+        throw new Error(`zip 条目过多（${entries.length} > ${MAX_ZIP_ENTRIES}），疑似恶意压缩包`)
+      }
+      for (const zipEntry of entries) {
+        if (zipEntry.isDirectory) continue
+        const relativePath = assertSafeZipEntry(zipEntry.entryName)
+        const outputPath = resolve(tempRoot, relativePath)
+        if (!outputPath.startsWith(resolve(tempRoot))) throw new Error(`zip 内含越界路径: ${zipEntry.entryName}`)
+        const data = zipEntry.getData()
+        totalExtractedBytes += data.length
+        if (totalExtractedBytes > MAX_ZIP_TOTAL_BYTES) {
+          throw new Error(`zip 解压总大小超过限制（${Math.round(MAX_ZIP_TOTAL_BYTES / 1024 / 1024)}MB），疑似恶意压缩包`)
+        }
+        mkdirSync(dirname(outputPath), { recursive: true })
+        writeFileSync(outputPath, data)
+        files.push(relativePath)
+      }
+      if (!files.some(file => file.toLowerCase().endsWith('.ycmd.json'))) {
+        throw new Error('支持库包中未找到 *.ycmd.json 清单')
+      }
+
+      rmSync(installRoot, { recursive: true, force: true })
+      mkdirSync(this.getInstalledRootPath(), { recursive: true })
+      renameSync(tempRoot, installRoot)
+
+      const state = this.readInstallState()
+      const previousLoaded = state.libraries[libraryId]?.loaded ?? this.libraries.find(lib => lib.name === libraryId)?.loaded ?? false
+      const installed: InstalledLibraryState = {
+        id: libraryId,
+        downloaded: true,
+        installed: true,
+        loaded: previousLoaded,
+        version: entry.version || '-',
+        packageSha256: actualHash,
+        sourceUrl: entry.packageUrl,
+        installedAt: new Date().toISOString(),
+        files: files.sort((a, b) => a.localeCompare(b)),
+        updateAvailable: false,
+        lastError: '',
+        disabledReason: '',
+        source: 'installed',
+      }
+      state.libraries[libraryId] = installed
+      this.writeInstallState(state)
+      this.metadataCache.clear()
+      this.scan()
+      return { ok: true, library: installed }
+    } catch (error) {
+      rmSync(tempRoot, { recursive: true, force: true })
+      const message = error instanceof Error ? error.message : String(error)
+      const state = this.readInstallState()
+      const previous = state.libraries[libraryId]
+      state.libraries[libraryId] = {
+        id: libraryId,
+        downloaded: previous?.downloaded ?? false,
+        installed: previous?.installed ?? false,
+        loaded: previous?.loaded ?? false,
+        version: previous?.version || entry.version || '-',
+        packageSha256: previous?.packageSha256 || entry.packageSha256 || '',
+        sourceUrl: entry.packageUrl,
+        installedAt: previous?.installedAt || '',
+        files: previous?.files || [],
+        updateAvailable: previous?.updateAvailable ?? false,
+        lastError: message,
+        disabledReason: previous?.disabledReason || '',
+        source: 'installed',
+      }
+      this.writeInstallState(state)
+      return { ok: false, error: message }
+    }
+  }
+
+  removeInstalled(name: string): LibraryRemoveResult {
+    const libraryId = normalizeLibraryId(name)
+    if (!libraryId) return { ok: false, error: '支持库标识无效' }
+    if (this.isCore(libraryId)) return { ok: false, error: '核心支持库不可移除' }
+    rmSync(this.getInstalledLibraryRoot(libraryId), { recursive: true, force: true })
+    const state = this.readInstallState()
+    delete state.libraries[libraryId]
+    this.writeInstallState(state)
+    this.metadataCache.clear()
+    this.scan()
+    return { ok: true }
+  }
+
+  private getSavedLoadedNames(): string[] | null {
+    // 返回 null = 无有效配置，按默认（全部加载）处理；返回 [] = 用户确实全部卸载。
+    // 二者绝不能混淆：文件缺失/损坏/字段非数组一律 null，否则损坏的配置会静默卸载全部支持库、
+    // 所有项目命令报"未知命令"，且无任何指向配置文件的提示。
+    const cfgPath = this.getConfigPath()
+    if (!existsSync(cfgPath)) return null
+    try {
+      const data = JSON.parse(readFileSync(cfgPath, 'utf-8')) as { loadedLibs?: unknown }
+      if (!Array.isArray(data.loadedLibs)) return null
+      return data.loadedLibs.filter((x): x is string => typeof x === 'string')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[libraryManager] 支持库加载状态文件损坏，已按默认全部加载：${cfgPath}（${message}）`)
+      return null
+    }
+  }
+
+  private saveLoadedState(): void {
+    try {
+      const loadedLibs = this.libraries.filter(l => l.loaded).map(l => l.name)
+      writeFileSync(this.getConfigPath(), JSON.stringify({ loadedLibs }, null, 2), 'utf-8')
+    } catch {
+      // ignore
+    }
+  }
+
+  private getLibraryDisplayMeta(customFolder?: string): Map<string, { libName: string; version: string; cmdCount: number }> {
+    const root = customFolder || this.getLibFolder()
+    const scan = scanYcmdRegistry(root)
+    const map = new Map<string, { libName: string; version: string; cmdCount: number }>()
+
+    for (const lib of scan.libraries) {
+      let libName = lib.name
+      let version = '-'
+      let cmdCount = 0
+
+      for (const item of lib.manifests) {
+        if (!item.valid || !item.manifest) continue
+        cmdCount++
+        const manifest = item.manifest as {
+          library?: string
+          libraryDisplayName?: string
+          libraryVersion?: string
+          contractVersion?: string
+        }
+
+        if (manifest.libraryDisplayName && manifest.libraryDisplayName.trim()) {
+          libName = manifest.libraryDisplayName.trim()
+        } else if (manifest.library && manifest.library.trim() && libName === lib.name) {
+          libName = manifest.library.trim()
+        }
+
+        if (manifest.libraryVersion && manifest.libraryVersion.trim()) {
+          version = manifest.libraryVersion.trim()
+        } else if (version === '-' && manifest.contractVersion && manifest.contractVersion.trim()) {
+          version = manifest.contractVersion.trim()
+        }
+      }
+
+      map.set(lib.name, { libName, version, cmdCount })
+    }
+
+    return map
+  }
+
+  private getLibraryFolder(name: string): string {
+    const scanned = this.libraries.find(lib => lib.name === name)
+    return scanned?.filePath || join(this.getLibFolder(), name)
+  }
+
+  private getMetadataFileCandidates(name: string, folderPath: string): string[] {
+    return [
+      join(folderPath, `${name}.library.json`),
+      join(folderPath, `${name}.metadata.json`),
+      join(folderPath, `${name}.identity.json`),
+      join(folderPath, `${name}.protocol.json`),
+      join(folderPath, `${name}.compile-protocol.json`),
+      join(folderPath, `${name}.constants.json`),
+      join(folderPath, 'library.json'),
+      join(folderPath, 'identity.json'),
+      join(folderPath, 'window-units.json'),
+      join(folderPath, `${name}.window-units.json`),
+    ]
+  }
+
+  private getIconIndexCandidates(name: string, folderPath: string): string[] {
+    return [
+      join(folderPath, 'icon', 'icon.json'),
+      join(folderPath, 'icons', 'icon.json'),
+      join(folderPath, `${name}.icon.json`),
+      join(folderPath, 'icon.json'),
+    ]
+  }
+
+  private mergeTextField(current: string, value: unknown): string {
+    if (typeof value !== 'string') return current
+    const trimmed = value.trim()
+    return trimmed || current
+  }
+
+  private parseLibraryDataTypes(value: unknown): LibraryDataType[] {
+    if (!Array.isArray(value)) return []
+    return value
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      .map(item => ({
+        name: typeof item.name === 'string' ? item.name.trim() : '',
+        englishName: typeof item.englishName === 'string' ? item.englishName.trim() : '',
+        description: typeof item.description === 'string' ? item.description.trim() : '',
+        isWindowUnit: item.isWindowUnit === true,
+      }))
+      .filter(item => item.name.length > 0)
+  }
+
+  private parseLibraryConstants(value: unknown): LibraryConstant[] {
+    if (!Array.isArray(value)) return []
+    const parsed: LibraryConstant[] = []
+    for (const entry of value) {
+      if (!entry || typeof entry !== 'object') continue
+      const item = entry as Record<string, unknown>
+      const name = typeof item.name === 'string' ? item.name.trim() : ''
+      if (!name) continue
+
+      let constantType: LibraryConstant['type'] = 'null'
+      if (item.type === 'number' || item.type === 'bool' || item.type === 'text') {
+        constantType = item.type
+      }
+
+      parsed.push({
+        name: typeof item.name === 'string' ? item.name.trim() : '',
+        englishName: typeof item.englishName === 'string' ? item.englishName.trim() : '',
+        description: typeof item.description === 'string' ? item.description.trim() : '',
+        type: constantType,
+        value: typeof item.value === 'string' ? item.value : String(item.value ?? ''),
+      })
+    }
+
+    return parsed
+  }
+
+  private parseWindowUnitProperties(value: unknown): LibraryWindowUnitProperty[] {
+    if (!Array.isArray(value)) return []
+    return value
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      .map(item => ({
+        name: typeof item.name === 'string' ? item.name.trim() : '',
+        englishName: typeof item.englishName === 'string' ? item.englishName.trim() : '',
+        description: typeof item.description === 'string' ? item.description.trim() : '',
+        type: typeof item.type === 'number' ? item.type : 0,
+        typeName: typeof item.typeName === 'string' ? item.typeName.trim() : '文本型',
+        isReadOnly: item.isReadOnly === true,
+        pickOptions: Array.isArray(item.pickOptions)
+          ? item.pickOptions.filter((entry): entry is string => typeof entry === 'string')
+          : [],
+        ...(typeof item.defaultValue === 'string' || typeof item.defaultValue === 'number' || typeof item.defaultValue === 'boolean'
+          ? { defaultValue: item.defaultValue }
+          : {}),
+      }))
+      .filter(item => item.name.length > 0)
+  }
+
+  private parseWindowUnitEvents(value: unknown): LibraryWindowUnitEvent[] {
+    if (!Array.isArray(value)) return []
+    return value
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      .map(item => ({
+        name: typeof item.name === 'string' ? item.name.trim() : '',
+        description: typeof item.description === 'string' ? item.description.trim() : '',
+        returnType: typeof item.returnType === 'string' ? item.returnType.trim() : '',
+        args: Array.isArray(item.args)
+          ? item.args
+              .filter((arg): arg is Record<string, unknown> => !!arg && typeof arg === 'object')
+              .map(arg => ({
+                name: typeof arg.name === 'string' ? arg.name.trim() : '',
+                description: typeof arg.description === 'string' ? arg.description.trim() : '',
+                dataType: typeof arg.dataType === 'string' ? arg.dataType.trim() : '整数型',
+                isByRef: arg.isByRef === true,
+              }))
+              .filter(arg => arg.name.length > 0)
+          : [],
+      }))
+      .filter(item => item.name.length > 0)
+  }
+
+  private parseWindowUnits(value: unknown, libraryName: string): LibraryWindowUnit[] {
+    if (!Array.isArray(value)) return []
+    const isCore = this.isCore(libraryName)
+    return value
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      .map(item => {
+        const englishName = typeof item.englishName === 'string' ? item.englishName.trim() : ''
+        const className = typeof item.className === 'string' ? item.className.trim() : ''
+        return {
+          name: typeof item.name === 'string' ? item.name.trim() : '',
+          englishName,
+          description: typeof item.description === 'string' ? item.description.trim() : '',
+          className,
+          style: typeof item.style === 'string' ? item.style.trim() : '',
+          iconFileName: typeof item.iconFileName === 'string'
+            ? item.iconFileName.trim()
+            : (typeof item.icon === 'string' ? item.icon.trim() : ''),
+          properties: mergeWithFixedCommonProperties(this.parseWindowUnitProperties(item.properties)),
+          events: this.parseWindowUnitEvents(item.events),
+          libraryName,
+          isCore,
+          toolboxCategory: resolveToolboxCategory({ explicit: item.toolboxCategory, className, englishName, isCore }),
+        }
+      })
+      .filter(item => item.name.length > 0)
+  }
+
+  private parseProtocolControlBindings(value: unknown): LibraryProtocolControlBinding[] {
+    if (!Array.isArray(value)) return []
+    return value
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      .map(item => ({
+        unit: typeof item.unit === 'string' ? item.unit.trim() : '',
+        unitEnglishName: typeof item.unitEnglishName === 'string' ? item.unitEnglishName.trim() : '',
+        className: typeof item.className === 'string' ? item.className.trim() : '',
+        style: typeof item.style === 'string' ? item.style.trim() : '',
+        toolboxCategory: typeof item.toolboxCategory === 'string' ? item.toolboxCategory.trim() : '',
+      }))
+      .filter(item => item.unit.length > 0)
+  }
+
+  private parseProtocolEventBindings(value: unknown): LibraryProtocolEventBinding[] {
+    if (!Array.isArray(value)) return []
+    return value
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      .map(item => ({
+        unit: typeof item.unit === 'string' ? item.unit.trim() : '',
+        event: typeof item.event === 'string' ? item.event.trim() : '',
+      }))
+      .filter(item => item.unit.length > 0 && item.event.length > 0)
+  }
+
+  private parseWindowUnitsFromProtocol(raw: LibraryMetadataFile, libraryName: string): LibraryWindowUnit[] {
+    const controls = this.parseProtocolControlBindings(raw.controlBindings)
+    if (controls.length === 0) return []
+
+    const eventMap = new Map<string, LibraryWindowUnitEvent[]>()
+    for (const eventBinding of this.parseProtocolEventBindings(raw.eventBindings)) {
+      const existing = eventMap.get(eventBinding.unit) ?? []
+      if (!existing.some(item => item.name === eventBinding.event)) {
+        existing.push({
+          name: eventBinding.event,
+          description: `${eventBinding.unit}的${eventBinding.event}事件。`,
+          returnType: '',
+          args: [],
+        })
+      }
+      eventMap.set(eventBinding.unit, existing)
+    }
+
+    const isCore = this.isCore(libraryName)
+    return controls.map(control => ({
+      name: control.unit,
+      englishName: control.unitEnglishName,
+      description: `${control.unit}控件。`,
+      className: control.className,
+      style: control.style,
+      iconFileName: '',
+      properties: mergeWithFixedCommonProperties(DEFAULT_PROTOCOL_UNIT_PROPERTIES),
+      events: eventMap.get(control.unit) ?? [],
+      isCore,
+      toolboxCategory: resolveToolboxCategory({
+        explicit: control.toolboxCategory,
+        className: control.className,
+        englishName: control.unitEnglishName,
+        isCore,
+      }),
+      libraryName,
+    }))
+  }
+
+  private parseUnitIconIndex(value: unknown): LibraryUnitIconIndexItem[] {
+    if (!Array.isArray(value)) return []
+    return value
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      .map(item => ({
+        eName: typeof item.eName === 'string' ? item.eName.trim() : '',
+        cName: typeof item.cName === 'string' ? item.cName.trim() : '',
+        iCons: typeof item.iCons === 'string' ? item.iCons.trim() : '',
+      }))
+      .filter(item => item.iCons.length > 0 && (item.cName.length > 0 || item.eName.length > 0))
+  }
+
+  private readWindowUnitIconIndex(name: string, folderPath: string): LibraryUnitIconIndexItem[] {
+    for (const candidate of this.getIconIndexCandidates(name, folderPath)) {
+      if (!existsSync(candidate)) continue
+      try {
+        const raw = JSON.parse(readFileSync(candidate, 'utf-8'))
+        const parsed = this.parseUnitIconIndex(raw)
+        if (parsed.length > 0) return parsed
+      } catch {
+        // ignore malformed icon index and continue with other candidates
+      }
+    }
+    return []
+  }
+
+  private applyWindowUnitIconIndex(windowUnits: LibraryWindowUnit[], iconIndex: LibraryUnitIconIndexItem[]): LibraryWindowUnit[] {
+    if (windowUnits.length === 0 || iconIndex.length === 0) return windowUnits
+
+    const byCnName = new Map<string, string>()
+    const byEnName = new Map<string, string>()
+    for (const item of iconIndex) {
+      if (item.cName) byCnName.set(item.cName, item.iCons)
+      if (item.eName) byEnName.set(item.eName.toLowerCase(), item.iCons)
+    }
+
+    return windowUnits.map(unit => {
+      const fromCn = byCnName.get(unit.name)
+      const fromEn = unit.englishName ? byEnName.get(unit.englishName.toLowerCase()) : undefined
+      const iconFileName = unit.iconFileName || fromCn || fromEn || ''
+      if (!iconFileName) return unit
+      return {
+        ...unit,
+        iconFileName,
+      }
+    })
+  }
+
+  private mergeWindowUnits(primary: LibraryWindowUnit[], fallback: LibraryWindowUnit[]): LibraryWindowUnit[] {
+    if (fallback.length === 0) return primary
+    if (primary.length === 0) return fallback
+
+    const map = new Map(primary.map(item => [item.name, item]))
+    for (const unit of fallback) {
+      const existing = map.get(unit.name)
+      if (!existing) {
+        map.set(unit.name, unit)
+        continue
+      }
+
+      const mergedEvents = existing.events.length > 0
+        ? existing.events
+        : unit.events
+      const mergedProperties = existing.properties.length > 0
+        ? existing.properties
+        : unit.properties
+      map.set(unit.name, {
+        ...existing,
+        className: existing.className || unit.className,
+        style: existing.style || unit.style,
+        iconFileName: existing.iconFileName || unit.iconFileName,
+        events: mergedEvents,
+        properties: mergeWithFixedCommonProperties(mergedProperties),
+      })
+    }
+
+    return Array.from(map.values())
+  }
+
+  private getLibraryMetadata(name: string): ParsedLibraryMetadata | null {
+    if (this.metadataCache.has(name)) {
+      return this.metadataCache.get(name) ?? null
+    }
+
+    const folderPath = this.getLibraryFolder(name)
+    const parsed: ParsedLibraryMetadata = {
+      guid: '',
+      description: '',
+      author: '',
+      qq: '',
+      email: '',
+      homePage: '',
+      otherInfo: '',
+      dataTypes: [],
+      constants: [],
+      windowUnits: [],
+    }
+    let hasMetadata = false
+
+    for (const candidate of this.getMetadataFileCandidates(name, folderPath)) {
+      if (!existsSync(candidate)) continue
+      try {
+        const parsedJson = JSON.parse(readFileSync(candidate, 'utf-8')) as unknown
+        // *.constants.json 是裸常量数组（如 krnln.constants.json），包一层适配统一解析
+        const raw = (Array.isArray(parsedJson)
+          ? { constants: parsedJson }
+          : parsedJson) as LibraryMetadataFile
+        hasMetadata = true
+        parsed.guid = this.mergeTextField(parsed.guid, raw.guid)
+        parsed.description = this.mergeTextField(parsed.description, raw.description)
+        parsed.author = this.mergeTextField(parsed.author, raw.author)
+        parsed.qq = this.mergeTextField(parsed.qq, raw.qq)
+        parsed.email = this.mergeTextField(parsed.email, raw.email)
+        parsed.homePage = this.mergeTextField(parsed.homePage, raw.homePage)
+        parsed.otherInfo = this.mergeTextField(parsed.otherInfo, raw.otherInfo)
+
+        const dataTypes = this.parseLibraryDataTypes(raw.dataTypes)
+        if (dataTypes.length > 0) parsed.dataTypes = dataTypes
+        const constants = this.parseLibraryConstants(raw.constants)
+        if (constants.length > 0) parsed.constants = constants
+        const windowUnits = this.parseWindowUnits(raw.windowUnits, name)
+        const protocolWindowUnits = this.parseWindowUnitsFromProtocol(raw, name)
+        const mergedWindowUnits = this.mergeWindowUnits(windowUnits, protocolWindowUnits)
+        if (mergedWindowUnits.length > 0) {
+          parsed.windowUnits = this.mergeWindowUnits(parsed.windowUnits, mergedWindowUnits)
+        }
+      } catch {
+        // ignore malformed metadata file and continue with other candidates
+      }
+    }
+
+    if (parsed.windowUnits.length > 0) {
+      const iconIndex = this.readWindowUnitIconIndex(name, folderPath)
+      parsed.windowUnits = this.applyWindowUnitIconIndex(parsed.windowUnits, iconIndex)
+    }
+
+    this.metadataCache.set(name, hasMetadata ? parsed : null)
+    return hasMetadata ? parsed : null
+  }
+
+  isCore(name: string): boolean {
+    return normalizeLibraryId(name) === CORE_LIBRARY_FILE_NAME
+  }
+
+  validateCoreLibraryIntegrity(): { ok: boolean; errors: string[] } {
+    if (!this.shouldEnforceCoreLibraryIntegrity()) {
+      return { ok: true, errors: [] }
+    }
+
+    const errors: string[] = []
+    const libRoot = this.getLibFolder()
+    const coreFolder = join(libRoot, CORE_LIBRARY_FILE_NAME)
+    if (!existsSync(coreFolder)) {
+      errors.push(`核心支持库目录不存在: ${coreFolder}`)
+      return { ok: false, errors }
+    }
+
+    const registry = scanYcmdRegistry(libRoot)
+    const core = registry.libraries.find(lib => lib.name === CORE_LIBRARY_FILE_NAME)
+    if (!core) {
+      errors.push('核心支持库清单不存在或未包含任何 *.ycmd.json 文件')
+    } else {
+      for (const manifest of core.manifests) {
+        if (manifest.valid) continue
+        const detail = manifest.errors.join('；') || '清单无效'
+        errors.push(`${manifest.filePath}: ${detail}`)
+      }
+    }
+
+    for (const [relativePath, expectedHash] of Object.entries(CORE_LIBRARY_EXPECTED_SHA256)) {
+      const filePath = join(coreFolder, relativePath)
+      if (!existsSync(filePath)) {
+        errors.push(`核心支持库文件缺失: ${relativePath}`)
+        continue
+      }
+      const actualHash = sha256Buffer(readFileSync(filePath))
+      if (actualHash !== expectedHash) {
+        errors.push(`核心支持库文件被修改: ${relativePath}`)
+      }
+    }
+
+    const metadata = this.getLibraryMetadata(CORE_LIBRARY_FILE_NAME)
+    if (!metadata || metadata.guid !== CORE_LIBRARY_GUID) {
+      errors.push('核心支持库标识文件无效或数字签名不匹配')
+    }
+
+    return { ok: errors.length === 0, errors }
+  }
+
+  getLibFolder(): string {
+    const { isPackaged, appPath } = getRuntimeEnv()
+    const isDev = !isPackaged
+    if (isDev) {
+      return join(appPath, 'lib')
+    }
+    return join(dirname(process.execPath), 'lib')
+  }
+
+  scan(customFolder?: string): LibraryItem[] {
+    const roots = customFolder ? [customFolder] : [this.getLibFolder(), this.getInstalledRootPath()]
+    const previousLoaded = new Map(this.libraries.map(l => [l.name, l.loaded]))
+    const savedLoaded = this.getSavedLoadedNames()
+    const savedSet = savedLoaded ? new Set(savedLoaded) : null
+    const libraryMap = new Map<string, LibraryItem>()
+
+    this.metadataCache.clear()
+    this.allCommandsCache.clear()
+    // 库集合发生重扫时，强制刷新 ycmd 注册表缓存，确保新增/移除/更新立即生效。
+    invalidateYcmdRegistryCache()
+
+    for (const root of roots) {
+      if (!existsSync(root)) continue
+      const result = scanYcmdRegistry(root)
+      const metaMap = this.getLibraryDisplayMeta(root)
+      const source: LibraryInstallSource = root === this.getInstalledRootPath() ? 'installed' : 'bundled'
+      for (const lib of result.libraries) {
+        if (source === 'installed' && this.isCore(lib.name)) continue
+        libraryMap.set(lib.name, {
+          name: lib.name,
+          filePath: lib.folderPath,
+          loaded: this.isCore(lib.name)
+            ? true
+            : (savedSet
+                ? savedSet.has(lib.name)
+                : (previousLoaded.get(lib.name) ?? true)),
+          isCore: this.isCore(lib.name),
+          source,
+          libName: metaMap.get(lib.name)?.libName || lib.name,
+          version: metaMap.get(lib.name)?.version || '-',
+          cmdCount: metaMap.get(lib.name)?.cmdCount ?? lib.manifests.filter(item => item.valid).length,
+          dtCount: 0,
+        })
+      }
+    }
+
+    this.libraries = Array.from(libraryMap.values()).sort((a, b) => {
+      if (a.isCore !== b.isCore) return a.isCore ? -1 : 1
+      return (a.libName || a.name).localeCompare(b.libName || b.name, 'zh-CN')
+    })
+    this.libraries = this.libraries.map(lib => ({
+      ...lib,
+      dtCount: this.getLibraryMetadata(lib.name)?.dataTypes.length ?? 0,
+    }))
+
+    return this.libraries
+  }
+
+  scanAndAutoLoad(): void {
+    this.scan()
+  }
+
+  load(name: string): LoadResult {
+    if (this.libraries.length === 0) this.scan()
+    const item = this.libraries.find(l => l.name === name)
+    if (!item) return { success: false, info: null, error: `未找到支持库 ${name}` }
+    if (!item.loaded) {
+      item.loaded = true
+      this.saveLoadedState()
+    }
+    const info = this.getLibInfo(name)
+    if (!info) return { success: false, info: null, error: `未找到支持库 ${name}` }
+    return { success: true, info }
+  }
+
+  unload(name: string): { success: boolean; error?: string } {
+    if (this.isCore(name)) {
+      return { success: false, error: '核心支持库不可卸载' }
+    }
+    if (this.libraries.length === 0) this.scan()
+    const item = this.libraries.find(l => l.name === name)
+    if (!item) return { success: false, error: `未找到支持库 ${name}` }
+    if (!item.loaded) return { success: true }
+    item.loaded = false
+    this.saveLoadedState()
+    return { success: true }
+  }
+
+  applySelection(selectedNames: string[]): { loadedCount: number; unloadedCount: number; failed: Array<{ name: string; error: string }> } {
+    if (this.libraries.length === 0) this.scan()
+
+    const failed: Array<{ name: string; error: string }> = []
+    const selected = new Set(selectedNames)
+    selected.add(CORE_LIBRARY_FILE_NAME)
+
+    let loadedCount = 0
+    let unloadedCount = 0
+
+    for (const item of this.libraries) {
+      const targetLoaded = this.isCore(item.name) ? true : selected.has(item.name)
+      if (item.loaded === targetLoaded) continue
+
+      if (!targetLoaded && this.isCore(item.name)) {
+        failed.push({ name: item.name, error: '核心支持库不可卸载' })
+        continue
+      }
+
+      if (targetLoaded) {
+        item.loaded = true
+        loadedCount++
+      } else {
+        item.loaded = false
+        unloadedCount++
+      }
+    }
+
+    this.saveLoadedState()
+    return { loadedCount, unloadedCount, failed }
+  }
+
+  loadAll(): number {
+    if (this.libraries.length === 0) this.scan()
+    let changed = 0
+    for (const item of this.libraries) {
+      if (!item.loaded) {
+        item.loaded = true
+        changed++
+      }
+    }
+    if (changed > 0) this.saveLoadedState()
+    return changed
+  }
+
+  getList(): LibraryItem[] {
+    return this.scan()
+  }
+
+  // 返回当前已扫描的支持库列表，不触发重扫。编译热路径专用：
+  // getList() 每次都会 scan()（全量扫盘 + 清空 metadataCache/allCommandsCache + invalidateYcmdRegistryCache），
+  // 而一次编译里 loadCompileProtocols / collectUsedLibraryFileNames / 组装入口都会调它，
+  // 等于反复全量扫盘并把所有缓存炸掉。编译期库集合不会变（增删改都另走 scan()），用缓存列表即可。
+  getCachedList(): LibraryItem[] {
+    if (this.libraries.length === 0) this.scan()
+    return this.libraries
+  }
+
+  private librarySupportsTargetPlatform(lib: LibraryItem, targetPlatform?: string): boolean {
+    const platform = normalizeTargetPlatform(targetPlatform)
+    if (!platform || lib.isCore) return true
+    const registry = scanYcmdRegistry(dirname(lib.filePath))
+    const scanned = registry.libraries.find(item => item.name === lib.name)
+    if (!scanned) return false
+    return scanned.manifests.some(item => item.valid && !!item.manifest?.implementations?.[platform]?.entry)
+  }
+
+  private getLoadedLibrariesForTarget(targetPlatform?: string): LibraryItem[] {
+    if (this.libraries.length === 0) this.scan()
+    return this.libraries.filter(lib => lib.loaded && this.librarySupportsTargetPlatform(lib, targetPlatform))
+  }
+
+  async getStoreCards(indexUrl?: string): Promise<StoreLibraryCard[]> {
+    const libraries = this.scan()
+    const supportedPlatformsById = new Map<string, Platform[]>()
+    const downloadedById = new Map<string, boolean>()
+    const installState = this.readInstallState()
+    const remoteIndex = indexUrl ? await this.getRemoteIndex(indexUrl) : null
+    const remoteById = new Map<string, LibraryPackageEntry>()
+
+    if (remoteIndex?.ok) {
+      for (const item of remoteIndex.index.libraries) remoteById.set(item.id, item)
+    }
+
+    for (const root of [this.getLibFolder(), this.getInstalledRootPath()]) {
+      if (!existsSync(root)) continue
+      const registry = scanYcmdRegistry(root)
+      for (const lib of registry.libraries) {
+        const platforms = new Set<Platform>(supportedPlatformsById.get(lib.name) || [])
+        let hasValidManifest = downloadedById.get(lib.name) || false
+        for (const item of lib.manifests) {
+          if (!item.valid || !item.manifest) continue
+          hasValidManifest = true
+          const implementations = item.manifest.implementations
+          if (!implementations || typeof implementations !== 'object') continue
+          for (const platform of STORE_PLATFORM_ORDER) {
+            if (implementations[platform]?.entry) {
+              platforms.add(platform)
+            }
+          }
+        }
+        supportedPlatformsById.set(lib.name, STORE_PLATFORM_ORDER.filter(platform => platforms.has(platform)))
+        downloadedById.set(lib.name, hasValidManifest)
+      }
+    }
+
+    const cards = libraries.map(lib => {
+      const installInfo = installState.libraries[lib.name]
+      const remoteInfo = remoteById.get(lib.name)
+      return {
+      id: lib.name,
+      displayName: lib.libName || lib.name,
+      version: installInfo?.version || lib.version || '-',
+      supportedPlatforms: remoteInfo?.supportedPlatforms || supportedPlatformsById.get(lib.name) || [],
+      isDownloaded: installInfo?.downloaded || downloadedById.get(lib.name) || false,
+      isInstalled: installInfo?.installed || lib.source === 'installed' || lib.source === 'bundled',
+      isLoaded: lib.loaded,
+      isCore: lib.isCore,
+      source: lib.source,
+      updateAvailable: !!remoteInfo && !!installInfo?.version && remoteInfo.version !== installInfo.version,
+      lastError: installInfo?.lastError || '',
+      packageFileName: remoteInfo?.packageFileName,
+      packageUrl: remoteInfo?.packageUrl,
+      packageSha256: remoteInfo?.packageSha256,
+      remoteVersion: remoteInfo?.version,
+      } satisfies StoreLibraryCard
+    })
+
+    for (const remote of remoteById.values()) {
+      if (cards.some(card => card.id === remote.id)) continue
+      const installInfo = installState.libraries[remote.id]
+      cards.push({
+        id: remote.id,
+        displayName: remote.displayName,
+        version: installInfo?.version || remote.version || '-',
+        supportedPlatforms: remote.supportedPlatforms,
+        isDownloaded: installInfo?.downloaded || false,
+        isInstalled: installInfo?.installed || false,
+        isLoaded: installInfo?.loaded || false,
+        isCore: this.isCore(remote.id),
+        source: installInfo?.source || 'installed',
+        updateAvailable: !!installInfo?.version && installInfo.version !== remote.version,
+        lastError: installInfo?.lastError || '',
+        packageFileName: remote.packageFileName,
+        packageUrl: remote.packageUrl,
+        packageSha256: remote.packageSha256,
+        remoteVersion: remote.version,
+      })
+    }
+
+    return cards
+  }
+
+  private mapYcmdCommand(cmd: YcmdResolvedCommand): LibraryCommand {
+    return {
+      ...cmd,
+      supportedPlatforms: Array.isArray(cmd.supportedPlatforms) ? [...cmd.supportedPlatforms] : [],
+      params: (cmd.params || []).map(p => ({
+        name: p.name,
+        type: p.type,
+        description: p.description,
+        optional: !!p.optional,
+        repeatable: !!p.repeatable,
+        isVariable: !!p.isVariable,
+        isArray: !!p.isArray,
+      })),
+    }
+  }
+
+  getAllCommands(targetPlatform?: string): LibraryCommand[] {
+    const platform = normalizeTargetPlatform(targetPlatform)
+    const cacheKey = platform || ''
+    const cached = this.allCommandsCache.get(cacheKey)
+    if (cached) return cached
+
+    const loadedLibraries = this.getLoadedLibrariesForTarget(platform)
+    const loadedYcmdCommands = loadedLibraries
+      .flatMap(lib => getYcmdCommands(dirname(lib.filePath), platform).filter(cmd => cmd.libraryFileName === lib.name))
+    const commands: LibraryCommand[] = loadedYcmdCommands.map(cmd => this.mapYcmdCommand(cmd))
+
+    const deduped = new Map<string, LibraryCommand>()
+    for (const command of commands) {
+      if (!deduped.has(command.name)) deduped.set(command.name, command)
+    }
+    const result = Array.from(deduped.values())
+    this.allCommandsCache.set(cacheKey, result)
+    return result
+  }
+
+  getAllDataTypes(targetPlatform?: string): LibraryDataType[] {
+    return this.getLoadedLibrariesForTarget(targetPlatform)
+      .flatMap(lib => this.getLibraryMetadata(lib.name)?.dataTypes || [])
+  }
+
+  getLibInfo(name: string): LibraryInfo | null {
+    if (this.libraries.length === 0) this.scan()
+    const isCoreLibrary = this.isCore(name) || name === CORE_LIBRARY_NAME
+    const item = this.libraries.find(lib => lib.name === name || lib.libName === name)
+    const libraryId = item?.name || name
+    const commands = (item ? getYcmdCommands(dirname(item.filePath)) : [])
+      .map(cmd => this.mapYcmdCommand(cmd))
+      .filter(cmd => cmd.libraryFileName === libraryId || cmd.libraryName === name || cmd.libraryName === libraryId)
+    const metadata = this.getLibraryMetadata(libraryId)
+
+    if (commands.length === 0 && !metadata) return null
+
+    const displayMeta = item ? { libName: item.libName || item.name, version: item.version || '-', cmdCount: item.cmdCount || 0 } : this.getLibraryDisplayMeta().get(libraryId)
+    return {
+      name: isCoreLibrary ? CORE_LIBRARY_NAME : (displayMeta?.libName || name),
+      guid: metadata?.guid || '-',
+      version: displayMeta?.version || '-',
+      description: metadata?.description || (isCoreLibrary ? '系统核心支持库命令与元数据由支持库清单提供。' : '由 ycmd 清单生成'),
+      author: metadata?.author || '-',
+      zipCode: '-',
+      address: '-',
+      phone: '-',
+      qq: metadata?.qq || '-',
+      email: metadata?.email || '-',
+      homePage: metadata?.homePage || '-',
+      otherInfo: metadata?.otherInfo || '-',
+      fileName: libraryId,
+      commands,
+      dataTypes: metadata?.dataTypes || [],
+      constants: metadata?.constants || [],
+      windowUnits: metadata?.windowUnits || [],
+    }
+  }
+
+  getAllWindowUnits(targetPlatform?: string): LibraryWindowUnit[] {
+    return this.getLoadedLibrariesForTarget(targetPlatform)
+      .flatMap(lib => this.getLibraryMetadata(lib.name)?.windowUnits || [])
+  }
+
+  findStaticLib(_name: string, _arch: string): string | null {
+    return null
+  }
+
+  getLoadedLibraryFiles(targetPlatform?: string): Array<{ name: string; libraryPath: string; libName: string }> {
+    const platform = normalizeTargetPlatform(targetPlatform)
+    if (this.libraries.length === 0) this.scan()
+
+    const result: Array<{ name: string; libraryPath: string; libName: string }> = []
+    const seen = new Set<string>()
+
+    for (const lib of this.getLoadedLibrariesForTarget(platform)) {
+      const registry = scanYcmdRegistry(dirname(lib.filePath))
+      const scanned = registry.libraries.find(item => item.name === lib.name)
+      if (!scanned) continue
+
+      for (const item of scanned.manifests) {
+        if (!item.valid || !item.manifest) continue
+        const entries: string[] = []
+        const pickEntry = (implementations: typeof item.manifest.implementations | undefined): string | undefined => {
+          if (platform) return implementations?.[platform]?.entry
+          return implementations?.windows?.entry
+            || implementations?.linux?.entry
+            || implementations?.macos?.entry
+            || implementations?.android?.entry
+            || implementations?.ios?.entry
+            || implementations?.harmony?.entry
+        }
+
+        const manifestEntry = pickEntry(item.manifest.implementations)
+        if (manifestEntry) entries.push(manifestEntry)
+
+        if (Array.isArray(item.manifest.commands)) {
+          for (const command of item.manifest.commands) {
+            if (!command || typeof command !== 'object' || '__section' in command) continue
+            const commandEntry = pickEntry(command.implementations || item.manifest.implementations)
+            if (commandEntry) entries.push(commandEntry)
+          }
+        }
+
+        for (const entry of entries) {
+          const implementationPath = resolve(dirname(item.filePath), entry)
+          if (seen.has(implementationPath)) continue
+          try {
+            if (!existsSync(implementationPath) || !statSync(implementationPath).isFile()) continue
+          } catch {
+            continue
+          }
+
+          seen.add(implementationPath)
+          result.push({
+            name: lib.name,
+            libraryPath: implementationPath,
+            libName: lib.libName || lib.name,
+          })
+        }
+      }
+    }
+
+    return result
+  }
+}
+
+export const libraryManager = new LibraryManager()

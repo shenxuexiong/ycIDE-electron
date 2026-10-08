@@ -1,0 +1,2573 @@
+/* ========== 易语言表格编辑器样式 ========== */
+/* 基于 ecode PHP 插件的默认配色方案 (ebackcolor1) 改编为暗色IDE版 */
+
+.eyc-table-editor {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--editor-font-family, "Microsoft YaHei", "SimSun", sans-serif);
+  font-size: var(--editor-font-size, 13px);
+  line-height: var(--editor-line-height, 20px);
+  height: 100%;
+  min-height: 0;
+  background: var(--table-bg, var(--bg-primary, #1e1e1e));
+  color: var(--table-text, var(--text-primary, #d4d4d4));
+  --flow-main-color: var(--flow-line-main, var(--syntax-keyword, #4fc1ff));
+  --flow-branch-color: var(--flow-line-branch, var(--flow-main-color));
+  --flow-loop-color: var(--flow-line-loop, var(--flow-main-color));
+  --flow-arrow-color: var(--flow-line-arrow, var(--flow-main-color));
+  --flow-inner-link-color: var(--flow-line-inner-link, var(--flow-main-color));
+  --eyc-diff-row-bg: color-mix(in srgb, var(--scrollbar-diff-added, var(--success, #28a745)) 26%, transparent);
+  --eyc-diff-row-border: color-mix(in srgb, var(--scrollbar-diff-added, var(--success, #28a745)) 70%, transparent);
+  --eyc-diff-edited-bg: color-mix(in srgb, var(--scrollbar-diff-edited, #0c548b) 30%, transparent);
+  --eyc-diff-edited-border: color-mix(in srgb, var(--scrollbar-diff-edited, #0c548b) 75%, transparent);
+  --eyc-diff-deleted-bar: var(--scrollbar-diff-deleted, color-mix(in srgb, var(--error, #d9534f) 90%, black 10%));
+  --eyc-diff-deleted-placeholder-bg: color-mix(in srgb, var(--eyc-diff-deleted-bar) 20%, transparent);
+  --eyc-diff-deleted-placeholder-border: color-mix(in srgb, var(--eyc-diff-deleted-bar) 78%, transparent);
+  --eyc-minimap-width: 75px;
+  --eyc-gutter-width: 80px;
+  /* 「当前编辑行」用中性淡色高亮，刻意区别于行选中的蓝色（--table-selection-bg），
+     否则编辑态盖过选中态、多选看不出来。主题可覆盖此变量。 */
+  --eyc-current-line-bg: color-mix(in srgb, var(--table-text, var(--text-primary, #d4d4d4)) 9%, transparent);
+}
+
+.eyc-editor-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.eyc-table-shell {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.eyc-scrollbar-mask {
+  position: absolute;
+  bottom: 0;
+  height: var(--eyc-scrollbar-height, 0px);
+  background: var(--table-bg, var(--bg-primary, #1e1e1e));
+  z-index: 5;
+  pointer-events: auto;
+}
+
+.eyc-scrollbar-mask-left {
+  left: 0;
+  width: var(--eyc-gutter-width);
+}
+
+.eyc-scrollbar-mask-right {
+  right: 0;
+  width: calc(var(--eyc-minimap-width) + var(--eyc-scrollbar-width, 0px) + 2px);
+}
+
+.eyc-scrollbar-status-lane {
+  position: absolute;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.eyc-scrollbar-status-lane-vertical {
+  top: 0;
+  right: 0;
+  bottom: var(--eyc-scrollbar-height, 0px);
+  width: var(--eyc-scrollbar-width, 0px);
+}
+
+.eyc-scrollbar-status-marker {
+  position: absolute;
+  pointer-events: none;
+  top: var(--eyc-scrollbar-marker-top, 0px);
+  height: var(--eyc-scrollbar-marker-height, 0px);
+}
+
+.eyc-scrollbar-status-lane-vertical .eyc-scrollbar-status-marker {
+  left: 0;
+  right: 0;
+}
+
+.eyc-scrollbar-status-lane-vertical .eyc-scrollbar-status-marker-difflane {
+  left: 0;
+  right: 50%;
+  margin-right: 1px;
+  min-height: 6px;
+}
+
+.eyc-scrollbar-status-lane-vertical .eyc-scrollbar-status-marker-errorlane {
+  left: 50%;
+  right: 0;
+  margin-left: 1px;
+}
+
+.eyc-scrollbar-status-marker-error {
+  background: var(--error, #d9534f);
+}
+
+.eyc-scrollbar-status-marker-added {
+  background: var(--scrollbar-diff-added, var(--success, #28a745));
+}
+
+.eyc-scrollbar-status-marker-edited {
+  background: var(--scrollbar-diff-edited, rgb(12, 84, 139));
+}
+
+.eyc-scrollbar-status-marker-deleted {
+  background: var(--scrollbar-diff-deleted, color-mix(in srgb, var(--error, #d9534f) 90%, black 10%));
+}
+
+.eyc-table-wrapper {
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+  overflow: auto;
+  padding: 8px calc(var(--eyc-minimap-width) + var(--eyc-scrollbar-width, 0px)) 8px 0;
+  position: relative;
+  outline: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 编辑器自管理焦点视觉（输入框光标、选中行高亮、搜索框边框），不需要全局键盘焦点描边。
+   global.css 的 `:focus-visible { outline: var(--focus-ring-size) solid var(--border-focus) }`
+   会落到编辑器里可聚焦的容器上（如挂载即被 focus 的 .eyc-table-wrapper，或 .eyc-minimap），
+   而这些容器的**右缘正好压在与变量汇总面板的交界处**，描边就渲染成一条贯穿全高的蓝色竖条
+   （用户 DevTools 实测：色值 = --border-focus、位置 = 变量面板左侧；点最大化/收展面板等切到
+   鼠标模态即 focus-visible 熄灭、竖条消失，故一度被误判为"重绘残影"）。逐元素 outline:none
+   会被全局规则按源码/主题注入顺序反超（同为 0,1,0 优先级，dev 与打包顺序还不一样），故这里用
+   更高优先级（后代选择器，0,2,0）统一盖掉编辑器内的焦点描边；各输入框仍保留自身 border 焦点提示。 */
+.eyc-table-editor :focus-visible {
+  outline: none;
+}
+
+.eyc-virtual-spacer {
+  height: var(--eyc-virtual-spacer-height, 0px);
+}
+
+.eyc-virtual-gutter-spacer {
+  flex: 0 0 var(--eyc-virtual-table-spacer-height, 0px);
+  min-height: var(--eyc-virtual-table-spacer-height, 0px);
+}
+
+.eyc-virtual-table-spacer-cell {
+  height: var(--eyc-virtual-table-spacer-height, 0px);
+  min-height: var(--eyc-virtual-table-spacer-height, 0px);
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.eyc-sticky-scope {
+  position: sticky;
+  top: -8px;
+  z-index: 6;
+  /* wrapper 内容区会额外扣除垂直滚动条宽度，导致冻结层右侧与预览区左侧出现固定缝隙 */
+  margin-right: calc(var(--eyc-scrollbar-width, 0px) * -1);
+  pointer-events: none;
+}
+
+.eyc-sticky-scope-row {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: max-content;
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--table-bg, var(--bg-primary, #1e1e1e)) 90%, var(--bg-secondary, #252526));
+  border-bottom: 1px solid var(--table-border, var(--border-color, #3c3c3c));
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--menu-shadow, rgba(0, 0, 0, 0.35)) 35%, transparent);
+  transform: translateY(var(--eyc-sticky-translate-y, 0px));
+  will-change: transform;
+}
+
+.eyc-sticky-scope-gutter {
+  pointer-events: none;
+  background: color-mix(in srgb, var(--table-bg, var(--bg-primary, #1e1e1e)) 92%, var(--bg-secondary, #252526));
+}
+
+.eyc-sticky-scope-table-wrap {
+  min-width: max-content;
+}
+
+.eyc-sticky-scope-table {
+  margin: 0;
+}
+
+.eyc-sticky-scope-table .Rowheight {
+  border-top: none;
+}
+
+.eyc-sticky-scope-table .eyc-data-row {
+  cursor: default;
+}
+
+.eyc-table-wrapper::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.eyc-table-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 0;
+}
+
+.eyc-table-wrapper::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-primary, var(--text-secondary)) 26%, transparent);
+  border: none;
+  border-radius: 0;
+}
+
+.eyc-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-primary, var(--text-secondary)) 42%, transparent);
+}
+
+.eyc-table-wrapper::-webkit-scrollbar-thumb:active {
+  background: color-mix(in srgb, var(--text-primary, var(--text-secondary)) 58%, transparent);
+}
+
+.eyc-table-wrapper::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.eyc-minimap {
+  position: absolute;
+  top: 0;
+  bottom: var(--eyc-scrollbar-height, 0px);
+  right: var(--eyc-scrollbar-width, 0px);
+  width: var(--eyc-minimap-width);
+  min-width: var(--eyc-minimap-width);
+  background: color-mix(in srgb, var(--table-bg, var(--bg-primary)) 86%, var(--bg-secondary));
+  padding: 4px;
+  box-sizing: border-box;
+  outline: none;
+  z-index: 3;
+  box-shadow: -8px 0 10px -10px var(--menu-shadow, rgba(0, 0, 0, 0.45));
+}
+
+.eyc-minimap:focus-visible {
+  /* 不画 inset 焦点环：minimap 是紧贴变量汇总面板的全高绝对定位条，环的右缘会渲染成
+     一条贯穿全高的蓝色竖条卡在面板边界（用户报的 bug）。焦点提示改由 .eyc-minimap-viewport
+     视口条在 :focus-visible 时显现承担（见下方规则），不再产生边界竖线。
+     注意：焦点环在鼠标/程序化聚焦时也会被 Chromium 判为 :focus-visible（div 的判定较宽），
+     故加载态/点击后都可能常驻，最大化切到鼠标模态才消失——直接去掉环最稳。 */
+  box-shadow: -8px 0 10px -10px var(--menu-shadow, rgba(0, 0, 0, 0.45));
+}
+
+.eyc-minimap-track {
+  position: relative;
+  height: 100%;
+  cursor: pointer;
+  border-radius: 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg-secondary) 45%, transparent);
+}
+
+.eyc-minimap-content {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 2px 3px;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+  white-space: nowrap;
+  color: var(--text-secondary, #858585);
+  font-family: var(--editor-font-family, "Consolas", monospace);
+  font-size: 11px;
+  line-height: 1.1;
+  transform: scale(0.24);
+  transform-origin: top left;
+  width: calc(100% / 0.24);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.eyc-minimap-row {
+  display: flex;
+  align-items: stretch;
+  min-height: 1.1em;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.eyc-minimap-row-table {
+  background: color-mix(in srgb, var(--table-header-bg, var(--bg-secondary)) 30%, transparent);
+  border-bottom: 1px solid var(--table-border, var(--border-color, #3c3c3c));
+}
+
+.eyc-minimap-row-code {
+  background: color-mix(in srgb, var(--table-bg, var(--bg-primary)) 88%, transparent);
+}
+
+.eyc-minimap-row-deleted {
+  background: color-mix(in srgb, var(--error, #d9534f) 14%, transparent);
+}
+
+.eyc-minimap-row-error {
+  background: color-mix(in srgb, var(--error, #d9534f) 22%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--error, #d9534f) 55%, transparent);
+}
+
+.eyc-minimap-row-selected {
+  background: color-mix(in srgb, var(--table-selection-bg, var(--bg-selection, rgba(51, 153, 255, 0.2))) 90%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-focus, var(--accent)) 55%, transparent);
+}
+
+.eyc-minimap-marker {
+  width: 3px;
+  min-width: 3px;
+  flex-shrink: 0;
+  background: transparent;
+}
+
+.eyc-minimap-marker-error {
+  background: var(--error, #d9534f);
+}
+
+.eyc-minimap-marker-added {
+  background: var(--success, #28a745);
+}
+
+.eyc-minimap-marker-edited {
+  background: color-mix(in srgb, var(--warning, #f0ad4e) 78%, white 10%);
+}
+
+.eyc-minimap-marker-deleted {
+  background: color-mix(in srgb, var(--error, #d9534f) 88%, black 8%);
+}
+
+.eyc-minimap-marker-none {
+  background: transparent;
+}
+
+.eyc-minimap-deleted-line {
+  flex: 1;
+  min-width: 0;
+  border-top: 1px solid var(--error, #d9534f);
+  border-bottom: 1px solid var(--error, #d9534f);
+}
+
+.eyc-minimap-cell {
+  flex: 1;
+  min-width: 0;
+  padding: 0 1px;
+  overflow: hidden;
+  text-overflow: clip;
+  border-right: 1px solid var(--table-border, var(--border-color, #3c3c3c));
+}
+
+.eyc-minimap-cell:last-child {
+  border-right: none;
+}
+
+.eyc-minimap-viewport {
+  position: absolute;
+  top: var(--eyc-minimap-viewport-top, 0%);
+  height: var(--eyc-minimap-viewport-height, 8%);
+  left: 0;
+  right: 0;
+  min-height: 14px;
+  border: none;
+  background: color-mix(in srgb, var(--text-secondary, var(--text-muted)) 24%, transparent);
+  border-radius: 0;
+  pointer-events: none;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.eyc-minimap:hover .eyc-minimap-viewport,
+.eyc-minimap:focus-within .eyc-minimap-viewport,
+.eyc-minimap:focus-visible .eyc-minimap-viewport {
+  opacity: 1;
+}
+
+/* ===== 行号 ===== */
+.eyc-block-row {
+  display: flex;
+  align-items: stretch;
+}
+
+/* 大文档滚动性能：离屏行使用浏览器原生可视区裁剪，减少布局/绘制开销 */
+.eyc-table-wrapper > .eyc-block-row {
+  content-visibility: auto;
+  contain-intrinsic-size: 24px;
+}
+
+/* 非包裹行（普通代码行/表格行）按内容自然宽度撑开，
+   让 .eyc-table-wrapper 在内容超宽时出现横向滚动条 */
+.eyc-block-row {
+  min-width: max-content;
+}
+
+/* 未知标识符回车 → 插入变量提示框 */
+.eyc-insertvar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10004;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+}
+.eyc-insertvar-dialog {
+  min-width: 320px;
+  max-width: 480px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 6px;
+  background: var(--bg-secondary, #252526);
+  color: var(--text-primary, #d4d4d4);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+}
+.eyc-insertvar-text {
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+.eyc-insertvar-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.eyc-insertvar-btns button {
+  appearance: none;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 3px;
+  background: var(--bg-primary, #1e1e1e);
+  color: var(--text-primary, #d4d4d4);
+  cursor: pointer;
+  font-size: 12px;
+}
+.eyc-insertvar-btns button:hover {
+  border-color: var(--accent, #4f8cff);
+}
+.eyc-insertvar-btns button:first-child {
+  background: var(--accent, #4f8cff);
+  border-color: var(--accent, #4f8cff);
+  color: #fff;
+}
+
+/* 打勾格（公开/静态/传址…）键盘焦点态：描边提示（空格切换、方向键移动、Esc 退出） */
+td.eyc-cell-bool-focus {
+  outline: 1px solid var(--border-focus, #2f9bff);
+  outline-offset: -2px;
+}
+
+/* 行选中高亮 */
+.eyc-line-selected {
+  background: var(--table-selection-bg-gradient, var(--table-selection-bg, var(--bg-selection, rgba(51, 153, 255, 0.2))));
+}
+.eyc-line-selected .eyc-gutter-linenum {
+  color: var(--table-header-text, var(--text-primary, #e0e0e0));
+}
+.eyc-gutter-cell.eyc-line-selected {
+  background: var(--table-selection-bg-gradient, var(--table-selection-bg, var(--bg-selection, rgba(51, 153, 255, 0.2))));
+}
+/* 选中行时覆盖 gutter 的不透明背景，保持选中色可见 */
+.eyc-block-row.eyc-line-selected > .eyc-line-gutter {
+  background: var(--table-selection-bg-gradient, var(--table-selection-bg, var(--bg-selection, rgba(51, 153, 255, 0.2))));
+}
+
+/* 正在编辑（获得焦点）的当前行：中性淡色高亮，明显区别于行选中的蓝色，避免编辑态盖过选中态 */
+.eyc-line-editing {
+  background: var(--eyc-current-line-bg);
+}
+.eyc-gutter-cell.eyc-line-editing {
+  background: var(--eyc-current-line-bg);
+}
+.eyc-block-row.eyc-line-editing > .eyc-line-gutter {
+  background: var(--eyc-current-line-bg);
+}
+/* 调试/diff 高亮行的 gutter 保持对应背景 */
+.eyc-debug-line > .eyc-line-gutter {
+  background: var(--table-row-hover-bg-gradient, var(--table-row-hover-bg, var(--bg-hover, rgba(78, 201, 176, 0.12))));
+}
+.eyc-block-row-wrap.eyc-diff-highlight > .eyc-line-gutter {
+  /* 行背景已由 .eyc-block-row-wrap.eyc-diff-highlight 提供，此处保持透明避免 26% 绿叠加变深 */
+  background-color: transparent !important;
+}
+
+.eyc-block-row-wrap.eyc-diff-highlight > .eyc-line-gutter .eyc-gutter-cell {
+  background-color: transparent !important;
+}
+
+.eyc-line-gutter {
+  width: var(--eyc-gutter-width);
+  min-width: var(--eyc-gutter-width);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  /* 水平滚动时行号固定在左侧不跟随横向滚动 */
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--table-bg, var(--bg-primary, #1e1e1e));
+}
+
+.eyc-gutter-cell {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: 22px;
+  user-select: none;
+}
+
+.eyc-gutter-linenum {
+  flex: 1;
+  text-align: right;
+  color: var(--text-secondary, #858585);
+  font-family: "Consolas", "Microsoft YaHei", monospace;
+  font-size: 14px;
+  padding-right: 4px;
+}
+
+.eyc-breakpoint-dot {
+  width: 12px;
+  min-width: 12px;
+  color: transparent;
+  font-size: 11px;
+  line-height: 1;
+  margin-right: 4px;
+  text-align: center;
+  user-select: none;
+}
+
+.eyc-breakpoint-dot.active {
+  color: var(--error, #e24d4d);
+}
+
+.eyc-debug-hoverable {
+  cursor: help;
+  text-decoration: underline dotted var(--flow-inner-link-color, var(--flow-line-inner-link, rgba(78, 201, 176, 0.6)));
+  text-underline-offset: 2px;
+}
+
+.eyc-debug-hover-tooltip {
+  position: fixed;
+  left: var(--eyc-debug-tooltip-left, 0px);
+  top: var(--eyc-debug-tooltip-top, 0px);
+  z-index: 3000;
+  min-width: 180px;
+  max-width: 420px;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg-secondary, #252526) 96%, transparent);
+  border: 1px solid color-mix(in srgb, var(--table-border, var(--border-color, #3c3c3c)) 70%, var(--flow-inner-link-color, var(--flow-line-inner-link, #4fc1ff)));
+  border-radius: 6px;
+  box-shadow: 0 10px 28px var(--menu-shadow, rgba(0, 0, 0, 0.35));
+  padding: 8px 10px;
+  color: var(--table-text, var(--text-primary, #d6f7f1));
+}
+
+.eyc-debug-hover-name {
+  font-weight: 700;
+  color: var(--flow-inner-link-color, var(--flow-line-inner-link, #8fe3d1));
+  margin-bottom: 2px;
+}
+
+.eyc-debug-hover-type {
+  font-size: 12px;
+  color: var(--text-secondary, #8ca8a2);
+  margin-bottom: 6px;
+}
+
+.eyc-debug-hover-value {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--table-text, var(--text-primary, #f5f7f7));
+}
+
+.eyc-debug-line .eyc-code-line {
+  background: var(--table-row-hover-bg-gradient, var(--table-row-hover-bg, var(--bg-hover, rgba(78, 201, 176, 0.12))));
+}
+
+.eyc-debug-line .eyc-gutter-linenum {
+  color: var(--table-header-text, var(--text-primary, #d7fff8));
+}
+
+/* AI diff 高亮 — 新增/修改行绿色背景 */
+.eyc-block-row-wrap.eyc-diff-highlight {
+  background-color: var(--eyc-diff-row-bg) !important;
+}
+.eyc-block-row-wrap.eyc-diff-highlight .eyc-code-line {
+  background-color: transparent !important;
+}
+.eyc-block-row-wrap.eyc-diff-highlight .eyc-line-gutter {
+  border-left: 3px solid var(--eyc-diff-row-border);
+}
+tr.eyc-data-row.eyc-diff-highlight > td {
+  background-color: var(--eyc-diff-row-bg) !important;
+}
+
+/* 表格模式下 .eyc-line-gutter 是 <tr> 外的兄弟节点，行号格通过 .eyc-gutter-cell.eyc-diff-highlight 单独上色（块模式下 .eyc-gutter-cell 无此类，故不会与外层 wrap 叠加） */
+.eyc-gutter-cell.eyc-diff-highlight {
+  background-color: var(--eyc-diff-row-bg);
+  border-left: 3px solid var(--eyc-diff-row-border);
+}
+
+tr.eyc-data-row.eyc-diff-highlight > td:last-child {
+  /* Paint diff color into right blank area without affecting layout/scroll width. */
+  box-shadow: 1200px 0 0 0 var(--eyc-diff-row-bg);
+}
+
+/* AI diff 高亮 — 修改行蓝色背景（覆盖默认的绿色 added 样式） */
+.eyc-block-row-wrap.eyc-diff-highlight.eyc-diff-edited {
+  background-color: var(--eyc-diff-edited-bg) !important;
+}
+.eyc-block-row-wrap.eyc-diff-highlight.eyc-diff-edited .eyc-line-gutter {
+  border-left-color: var(--eyc-diff-edited-border);
+}
+tr.eyc-data-row.eyc-diff-highlight.eyc-diff-edited > td {
+  background-color: var(--eyc-diff-edited-bg) !important;
+}
+.eyc-gutter-cell.eyc-diff-highlight.eyc-diff-edited {
+  background-color: var(--eyc-diff-edited-bg);
+  border-left-color: var(--eyc-diff-edited-border);
+}
+tr.eyc-data-row.eyc-diff-highlight.eyc-diff-edited > td:last-child {
+  box-shadow: 1200px 0 0 0 var(--eyc-diff-edited-bg);
+}
+
+/* AI diff 高亮 — 删除锚点：在行底部绘制 2px 红色细条提示其后发生了删除 */
+.eyc-block-row-wrap.eyc-diff-deleted-anchor {
+  box-shadow: inset 0 -2px 0 0 var(--eyc-diff-deleted-bar);
+}
+tr.eyc-data-row.eyc-diff-deleted-anchor > td {
+  box-shadow: inset 0 -2px 0 0 var(--eyc-diff-deleted-bar);
+}
+.eyc-gutter-cell.eyc-diff-deleted-anchor {
+  box-shadow: inset 0 -2px 0 0 var(--eyc-diff-deleted-bar);
+}
+/* 与 added/edited 背景共存时，保证底部红条依然可见 */
+tr.eyc-data-row.eyc-diff-highlight.eyc-diff-deleted-anchor > td:last-child {
+  box-shadow:
+    1200px 0 0 0 var(--eyc-diff-row-bg),
+    inset 0 -2px 0 0 var(--eyc-diff-deleted-bar);
+}
+tr.eyc-data-row.eyc-diff-highlight.eyc-diff-edited.eyc-diff-deleted-anchor > td:last-child {
+  box-shadow:
+    1200px 0 0 0 var(--eyc-diff-edited-bg),
+    inset 0 -2px 0 0 var(--eyc-diff-deleted-bar);
+}
+
+/* AI diff 高亮 — 删除行占位：完整行高红色显示（未应用更改时） */
+.eyc-diff-deleted-placeholder {
+  background: transparent;
+}
+
+.eyc-diff-deleted-placeholder > .eyc-line-gutter,
+.eyc-diff-deleted-placeholder > .eyc-code-line {
+  background: var(--eyc-diff-deleted-placeholder-bg);
+}
+
+.eyc-diff-deleted-placeholder-gutter {
+  /* 表格删除占位：gutter 列容器不随行变色，红背景由单元格自己提供 */
+  background: var(--eyc-diff-deleted-placeholder-bg);
+  border-left: 3px solid var(--eyc-diff-deleted-placeholder-border);
+}
+
+/* 代码行删除占位：整行容器已有红背景，单元格保持透明避免叠色变深 */
+.eyc-diff-deleted-placeholder .eyc-diff-deleted-placeholder-gutter {
+  background: transparent;
+}
+
+.eyc-diff-deleted-placeholder-gutter .eyc-breakpoint-dot {
+  visibility: hidden;
+}
+
+.eyc-diff-deleted-placeholder-line {
+  min-height: var(--editor-line-height, 22px);
+  background: var(--eyc-diff-deleted-placeholder-bg);
+}
+
+tr.eyc-diff-deleted-placeholder-row > td.eyc-diff-deleted-placeholder-cell {
+  height: var(--editor-line-height, 22px);
+  background: var(--eyc-diff-deleted-placeholder-bg);
+  border-top: 1px solid color-mix(in srgb, var(--eyc-diff-deleted-bar) 62%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--eyc-diff-deleted-bar) 48%, transparent);
+  box-shadow: 1200px 0 0 0 var(--eyc-diff-deleted-placeholder-bg);
+}
+
+.eyc-gutter-fold-area {
+  width: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 6px;
+}
+
+/* 行号区：左右镜像的箭头光标（指向行内容，热点在右上尖端），提示"单击选中整行、拖动多选"。
+   CSS 无法翻转系统当前主题的光标（cursor 只能换图），这里按 Windows 标准箭头几何 1:1 镜像自绘
+   （白填充+黑描边）。用户权衡后选定此方案（手型 pointer 试过又改回）。
+   粘性子程序头 gutter 与 diff 删除占位 gutter 不参与。 */
+.eyc-line-gutter:not(.eyc-sticky-scope-gutter) .eyc-gutter-cell:not(.eyc-diff-deleted-placeholder-gutter):not(.eyc-virtual-gutter-spacer) {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='21'><path d='M 12.66,1.5 L 12.66,18.37 L 8.68,14.71 L 6.01,20.53 L 3.25,19.27 L 5.92,13.45 L 0.5,13.45 Z' fill='white' stroke='black' stroke-width='1' stroke-linejoin='miter'/></svg>") 13 2, default;
+}
+
+/* 行号旁的展开/收缩按钮 */
+.eyc-gutter-fold {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary, #858585);
+  cursor: pointer;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+}
+.eyc-gutter-fold:hover {
+  color: var(--table-header-text, var(--table-text, #d4d4d4));
+  border-color: transparent;
+  background: transparent;
+}
+
+/* ===== 流程线 ===== */
+.eyc-flow-seg {
+  display: inline-block;
+  width: 4ch;
+  height: 22px;
+  position: relative;
+  vertical-align: top;
+  pointer-events: none;
+  --flow-join-gap: 1.5px;
+}
+
+.eyc-flow-overlap-slot {
+  position: relative;
+  display: inline-block;
+  width: 4ch;
+  height: 22px;
+  vertical-align: top;
+  pointer-events: none;
+}
+
+.eyc-flow-overlap-slot > .eyc-flow-seg {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* 统一竖向虚线周期：压缩到更紧凑的 3/7 节距，减少行内过大空隙 */
+.eyc-flow-through::before,
+.eyc-flow-start::before,
+.eyc-flow-end::before,
+.eyc-flow-branch::before,
+.eyc-flow-inner-vert,
+.eyc-flow-outer-resume,
+.eyc-flow-link-vert,
+.eyc-param-expand-row::after {
+  background-size: 1px 7px;
+  background-repeat: repeat-y;
+}
+/* 竖线穿过 │ */
+.eyc-flow-through::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: var(--flow-join-gap);
+  bottom: var(--flow-join-gap);
+  width: 1px;
+  background-image: repeating-linear-gradient(to bottom, var(--flow-main-color, var(--flow-line-main, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+/* 起始 ┌─ */
+.eyc-flow-start::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  bottom: var(--flow-join-gap);
+  width: 1px;
+  background-image: repeating-linear-gradient(to bottom, var(--flow-main-color, var(--flow-line-main, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+.eyc-flow-start::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 1ch;
+  top: 50%;
+  height: 1px;
+  background-image: repeating-linear-gradient(to right, var(--flow-main-color, var(--flow-line-main, #4fc1ff)) 0 3px, transparent 3px 6px);
+}
+/* 结束 └─ */
+.eyc-flow-end::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: var(--flow-join-gap);
+  height: 50%;
+  width: 1px;
+  background-image: repeating-linear-gradient(to bottom, var(--flow-main-color, var(--flow-line-main, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+.eyc-flow-end::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 1ch;
+  top: 50%;
+  height: 1px;
+  background-image: repeating-linear-gradient(to right, var(--flow-main-color, var(--flow-line-main, #4fc1ff)) 0 3px, transparent 3px 6px);
+}
+/* 分支 ├─ */
+.eyc-flow-branch::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: var(--flow-join-gap);
+  height: 50%;
+  width: 1px;
+  background-image: repeating-linear-gradient(to bottom, var(--flow-branch-color, var(--flow-line-branch, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+.eyc-flow-branch::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 1ch;
+  top: 50%;
+  height: 1px;
+  background-image: repeating-linear-gradient(to right, var(--flow-branch-color, var(--flow-line-branch, #4fc1ff)) 0 3px, transparent 3px 6px);
+}
+/* 循环命令颜色 */
+.eyc-flow-loop.eyc-flow-start::before {
+  background-image: repeating-linear-gradient(to bottom, var(--flow-loop-color, var(--flow-line-loop, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+.eyc-flow-loop.eyc-flow-start::after {
+  background-image: repeating-linear-gradient(to right, var(--flow-loop-color, var(--flow-line-loop, #4fc1ff)) 0 3px, transparent 3px 6px);
+}
+.eyc-flow-loop.eyc-flow-end::before {
+  background-image: repeating-linear-gradient(to bottom, var(--flow-loop-color, var(--flow-line-loop, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+.eyc-flow-loop.eyc-flow-end::after {
+  background-image: repeating-linear-gradient(to right, var(--flow-loop-color, var(--flow-line-loop, #4fc1ff)) 0 3px, transparent 3px 6px);
+}
+.eyc-flow-loop.eyc-flow-through::before {
+  background-image: repeating-linear-gradient(to bottom, var(--flow-loop-color, var(--flow-line-loop, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+.eyc-flow-loop .eyc-flow-arrow-right {
+  border-left-color: var(--flow-arrow-color, var(--flow-line-arrow, #4fc1ff));
+}
+
+/* 流程结束下箭头▼ */
+.eyc-flow-arrow-down {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--flow-arrow-color, var(--flow-line-arrow, #4fc1ff));
+}
+.eyc-flow-loop .eyc-flow-arrow-down {
+  border-top-color: var(--flow-arrow-color, var(--flow-line-arrow, #4fc1ff));
+}
+
+/* judge 分支重叠衔接场景：统一禁用该行的向下三角，避免残留箭头漏网。 */
+.eyc-flow-seg.eyc-flow-hide-down-arrows .eyc-flow-arrow-down {
+  display: none !important;
+}
+
+/* 内部竖线（标记行用） */
+.eyc-flow-inner-vert {
+  position: absolute;
+  left: calc(1ch + 4px);
+  width: 1px;
+  background-image: repeating-linear-gradient(to bottom, var(--flow-inner-link-color, var(--flow-line-inner-link, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+/* 内部竖线穿过（through行，在标记分支与标记结束之间） */
+.eyc-flow-inner-through {
+  top: var(--flow-join-gap);
+  bottom: var(--flow-join-gap);
+}
+
+/* 有内侧横线的起始行：内侧竖线从横线高度开始，避免从行顶起画。 */
+.eyc-flow-seg.eyc-flow-has-inner-link .eyc-flow-inner-through {
+  top: 9px;
+}
+
+/* 仅当内侧竖线确实从上一行延续下来时，恢复上半段连通。 */
+.eyc-flow-seg.eyc-flow-has-inner-link.eyc-flow-inner-from-above .eyc-flow-inner-through {
+  top: var(--flow-join-gap);
+}
+/* 无外部流程线（额外 \u200D 行） */
+.eyc-flow-seg.eyc-flow-no-outer::before { display: none !important; }
+.eyc-flow-seg.eyc-flow-no-outer::after { display: none !important; }
+/* 内部竖线结束段 */
+.eyc-flow-inner-end {
+  top: var(--flow-join-gap);
+  bottom: 5px;
+}
+/* 内部向下箭头位置 */
+.eyc-flow-inner-arrow-down {
+  left: calc(1ch + 4px - 4px);
+}
+.eyc-flow-loop .eyc-flow-inner-vert {
+  background-image: repeating-linear-gradient(to bottom, var(--flow-inner-link-color, var(--flow-line-inner-link, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+
+/* 分支有内部竖线穿过：外层竖线分裂为上下两段，间距=文本高度 */
+.eyc-flow-branch.eyc-flow-has-inner-link::before {
+  /* 上段：从顶部到文本顶边 */
+  bottom: auto;
+  height: 20%;
+}
+.eyc-flow-branch.eyc-flow-has-inner-link::after {
+  /* 横线移到文本底部 */
+  top: 80%;
+}
+/* 下段：从文本底部继续向下 */
+.eyc-flow-outer-resume {
+  position: absolute;
+  left: 4px;
+  top: 80%;
+  bottom: var(--flow-join-gap);
+  width: 1px;
+  background-image: repeating-linear-gradient(to bottom, var(--flow-main-color, var(--flow-line-main, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+.eyc-flow-loop .eyc-flow-outer-resume {
+  background-image: repeating-linear-gradient(to bottom, var(--flow-loop-color, var(--flow-line-loop, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+/* 上段横线：从外部竖线(left:4px)延伸到命令文本左边 */
+.eyc-flow-outer-horz {
+  position: absolute;
+  left: 4px;
+  right: 1ch;
+  top: 20%;
+  height: 1px;
+  background-image: repeating-linear-gradient(to right, var(--flow-main-color, var(--flow-line-main, #4fc1ff)) 0 3px, transparent 3px 6px);
+}
+.eyc-flow-loop .eyc-flow-outer-horz {
+  background-image: repeating-linear-gradient(to right, var(--flow-loop-color, var(--flow-line-loop, #4fc1ff)) 0 3px, transparent 3px 6px);
+}
+/* 上段横线右箭头▶ */
+.eyc-flow-outer-arrow {
+  position: absolute;
+  right: 1ch;
+  top: 20%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--flow-arrow-color, var(--flow-line-arrow, #4fc1ff));
+}
+.eyc-flow-loop .eyc-flow-outer-arrow {
+  border-left-color: var(--flow-arrow-color, var(--flow-line-arrow, #4fc1ff));
+}
+
+/* 右箭头▶ */
+.eyc-flow-arrow-right {
+  position: absolute;
+  right: 1ch;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--flow-arrow-color, var(--flow-line-arrow, #4fc1ff));
+}
+.eyc-flow-loop .eyc-flow-arrow-right {
+  border-left-color: var(--flow-arrow-color, var(--flow-line-arrow, #4fc1ff));
+}
+
+/* ===== 紧邻流程命令的连接线 ===== */
+/* 有前方流程连接的起始行：横线和竖线下移腾出空间 */
+.eyc-flow-start.eyc-flow-has-prev-end::before {
+  top: 70%;
+}
+.eyc-flow-start.eyc-flow-has-prev-end::after {
+  top: 70%;
+}
+/* 连接上方流程的竖线（从顶部到 40%） */
+.eyc-flow-link-vert {
+  position: absolute;
+  left: calc(1ch + 4px);
+  top: var(--flow-join-gap);
+  height: 40%;
+  width: 1px;
+  background-image: repeating-linear-gradient(to bottom, var(--flow-inner-link-color, var(--flow-line-inner-link, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+/* 连接上方流程的横线（从内部竖线向右） */
+.eyc-flow-link-horz {
+  position: absolute;
+  left: calc(1ch + 4px);
+  right: 1ch;
+  top: 9px;
+  height: 1px;
+  background-image: repeating-linear-gradient(to right, var(--flow-inner-link-color, var(--flow-line-inner-link, #4fc1ff)) 0 3px, transparent 3px 6px);
+}
+/* 如果真等单分支结构：桥接接到外侧主结构线（left:4px），与前块的外侧竖线对齐，而非内侧线。 */
+.eyc-flow-link-vert.eyc-flow-link-outer,
+.eyc-flow-link-horz.eyc-flow-link-outer {
+  left: 4px;
+}
+/* 连接上方流程的右箭头 */
+.eyc-flow-link-arrow {
+  position: absolute;
+  right: 1ch;
+  top: 9px;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--flow-arrow-color, var(--flow-line-arrow, #4fc1ff));
+}
+
+/* 横向线在非整数 zoom 下容易被抗锯齿成 2px，做纵向反缩放保持视觉 1px */
+.eyc-flow-start::after,
+.eyc-flow-end::after,
+.eyc-flow-branch::after,
+.eyc-flow-outer-horz,
+.eyc-flow-link-horz,
+.eyc-flow-inner-link-horz {
+  transform: scaleY(calc(1 / var(--eyc-scale, 1)));
+  transform-origin: center;
+}
+
+/* ===== 嵌套流程：外层 inner vert 分支到内层命令 ===== */
+/* 外层 through 段内部竖线分支横线（从左侧延伸到内层命令横线起始处） */
+.eyc-flow-inner-link-horz {
+  position: absolute;
+  left: calc(1ch + 4px);
+  right: auto;
+  width: 11px;
+  top: 9px;
+  height: 1px;
+  background-image: repeating-linear-gradient(to right, var(--flow-inner-link-color, var(--flow-line-inner-link, #4fc1ff)) 0 3px, transparent 3px 6px);
+}
+/* 外层 through 段内部竖线分支右箭头 */
+.eyc-flow-inner-link-arrow {
+  position: absolute;
+  right: calc(-3ch - 4px - 3px);
+  top: 9px;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--flow-arrow-color, var(--flow-line-arrow, #4fc1ff));
+}
+/* 有外层连接的内层起始行：下移腾出空间 */
+.eyc-flow-start.eyc-flow-has-outer-link::before {
+  top: 70%;
+}
+.eyc-flow-start.eyc-flow-has-outer-link::after {
+  top: 70%;
+}
+
+/* 同行出现外层结束横线与内层开始横线时，做上下错位避免重叠。 */
+.eyc-flow-branch.eyc-flow-stagger-upper::before {
+  height: 35%;
+}
+
+.eyc-flow-branch.eyc-flow-stagger-upper::after {
+  top: 35%;
+  right: 1ch;
+}
+
+.eyc-flow-branch.eyc-flow-stagger-upper .eyc-flow-arrow-right {
+  top: 35%;
+  right: 1ch;
+}
+
+.eyc-flow-start.eyc-flow-stagger-lower::before {
+  top: 68%;
+}
+
+.eyc-flow-start.eyc-flow-stagger-lower::after {
+  top: 68%;
+}
+
+/* 内层为循环时，起始行的向右箭头需跟随错位后的横线下移到 68%，
+   否则 ▶ 停在 50% 而横线/竖角在 68%，箭头与横线脱节（对照 branch 侧 stagger-upper 的 35% 箭头规则）。 */
+.eyc-flow-start.eyc-flow-stagger-lower .eyc-flow-arrow-right {
+  top: 68%;
+}
+
+/* 分支的内容行是同一行右侧紧邻的内层结构（如 否则体首行就是嵌套如果）：
+   横线与 ▶ 原本停在本格 right:1ch、与内层结构之间留一截缺口；
+   延伸穿过内层格，箭头尖画到内层命令文本左边（下一格的 right:1ch 处，
+   即嵌套「如」字左边、内层自身钩线末端的位置——与普通分支箭头到正文的间距一致）。
+   须放在 stagger 规则之后以覆盖其 right（top 仍沿用 stagger 的 35%）。 */
+.eyc-flow-branch.eyc-flow-arrow-into-inner::after {
+  right: -3ch;
+}
+.eyc-flow-branch.eyc-flow-arrow-into-inner .eyc-flow-arrow-right {
+  right: -3ch;
+}
+.eyc-flow-branch.eyc-flow-arrow-into-inner .eyc-flow-outer-horz {
+  right: -3ch;
+}
+.eyc-flow-branch.eyc-flow-arrow-into-inner .eyc-flow-outer-arrow {
+  right: -3ch;
+}
+
+/* hasInnerLink 的 through 行：外侧竖线需完整贯通，避免出现中段断裂 */
+.eyc-flow-through.eyc-flow-has-inner-link::before {
+  bottom: var(--flow-join-gap) !important;
+  height: auto;
+}
+
+/* 代码行包裹（支持展开参数） */
+.eyc-block-row-wrap {
+  flex-wrap: wrap;
+}
+
+/* 展开的参数详情 */
+.eyc-param-expand {
+  width: 100%;
+  position: relative;
+  padding-left: var(--eyc-param-expand-padding-left, 0px);
+}
+.eyc-param-expand-gutter-fold-area {
+  position: absolute;
+  left: 54px;
+  top: 24px;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+/* 参数展开区域的流程线延续容器 */
+.eyc-param-flow-cont {
+  position: absolute;
+  left: 80px;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: row;
+  /* 必须与 eyc-code-line 相同字体，确保 4ch 宽度一致 */
+  font-family: "Consolas", "Microsoft YaHei", monospace;
+  font-size: 13px;
+}
+.eyc-param-flow-cont .eyc-flow-seg {
+  height: 100%;
+}
+.eyc-param-flow-cont .eyc-flow-cont-seg {
+  display: inline-block;
+  width: 4ch;
+  position: relative;
+}
+/* 参数展开区延续内侧竖线：将外侧线位置移到内侧 */
+.eyc-param-flow-cont .eyc-flow-cont-inner.eyc-flow-through::before {
+  left: calc(1ch + 4px);
+}
+/* 向上指向命令的三角箭头 */
+.eyc-param-expand-arrow {
+  position: absolute;
+  left: var(--eyc-param-expand-arrow-left, 0px);
+  top: -6px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 6px solid var(--flow-arrow-color, var(--flow-line-arrow, #4fc1ff));
+  z-index: 1;
+  transform: translateX(2.5px);
+}
+.eyc-param-expand-inner {
+  --vline-offset: calc(-20px + 1.5ch);
+  background: var(--table-header-bg-gradient, var(--table-header-bg, var(--bg-secondary, #252526)));
+  border-left: none;
+  margin: 0 0 2px 0;
+  padding: 2px 8px;
+  font-family: "Consolas", "Microsoft YaHei", monospace;
+  font-size: 12px;
+  position: relative;
+}
+.eyc-param-expand-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 1px 0;
+  line-height: 20px;
+  position: relative;
+}
+.eyc-param-expand-row-clickable {
+  cursor: text;
+}
+/* 展开参数行多选高亮（Ctrl/Shift 点选）：左侧强调条 + 较实底色，
+   在任何底色（错误粉底/行选蓝底/普通编辑器底）上都清晰可辨，区别于整行选择的浅色底。 */
+.eyc-param-expand-row-selected {
+  background: color-mix(in srgb, var(--border-focus, #007fd4) 26%, transparent);
+  box-shadow: inset 3px 0 0 var(--border-focus, #007fd4);
+  border-radius: 2px;
+}
+/* 正在编辑的参数行：中性淡色高亮 + 左侧强调条，在整块淡色「当前行」底上清楚指出正在编辑哪个参数，
+   与蓝色的「参数多选」(selected)、蓝色的「整行选中」明确区分开——编辑=中性，选中=蓝。 */
+.eyc-param-expand-row-editing {
+  background: color-mix(in srgb, var(--table-text, var(--text-primary, #d4d4d4)) 13%, transparent);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--table-text, var(--text-primary, #d4d4d4)) 50%, transparent);
+  border-radius: 2px;
+}
+/* 行选中时不让整行选择底色透进展开参数区（否则命令行+全部参数行像被一起选中，无法判断）：
+   参数区恢复编辑器底色，仅命令行本身显示选中态。 */
+.eyc-block-row.eyc-line-selected > .eyc-param-expand {
+  background: var(--table-bg, var(--bg-primary, #1e1e1e));
+}
+.eyc-param-expand-secondary {
+  --eyc-param-expand-indent: 20px;
+  position: relative;
+  padding-left: var(--eyc-param-expand-indent);
+  padding-top: 6px;
+}
+.eyc-param-expand-secondary-depth-0 { --eyc-param-expand-indent: 20px; }
+.eyc-param-expand-secondary-depth-1 { --eyc-param-expand-indent: 34px; }
+.eyc-param-expand-secondary-depth-2 { --eyc-param-expand-indent: 48px; }
+.eyc-param-expand-secondary-depth-3 { --eyc-param-expand-indent: 62px; }
+.eyc-param-expand-secondary-depth-4 { --eyc-param-expand-indent: 76px; }
+.eyc-param-expand-secondary-depth-5 { --eyc-param-expand-indent: 90px; }
+.eyc-param-expand-secondary-depth-6 { --eyc-param-expand-indent: 104px; }
+.eyc-param-expand-row-secondary {
+  margin-left: 2px;
+}
+.eyc-param-expand-row-assign-value::after {
+  bottom: 50%;
+}
+.eyc-param-expand-arrow-secondary {
+  left: calc(var(--eyc-param-expand-indent, 20px) + var(--vline-offset, -8px) + 2px);
+  top: 0;
+  transform: translateX(-50%);
+}
+/* 从※左边延伸到垂直虚线位置的水平虚线 */
+.eyc-param-expand-row::before {
+  content: '';
+  position: absolute;
+  left: var(--vline-offset, -8px);
+  right: calc(100% + 2px);
+  top: 50%;
+  height: 1px;
+  background-image: repeating-linear-gradient(to right, var(--flow-inner-link-color, var(--flow-line-inner-link, #4fc1ff)) 0 3px, transparent 3px 6px);
+}
+/* 每行左侧的垂直虚线段 */
+.eyc-param-expand-row::after {
+  content: '';
+  position: absolute;
+  left: var(--vline-offset, -8px);
+  top: 1px;
+  bottom: 1px;
+  width: 1px;
+  background-image: repeating-linear-gradient(to bottom, var(--flow-inner-link-color, var(--flow-line-inner-link, #4fc1ff)) 0 3px, transparent 3px 8px);
+}
+/* 有下级子树时，当前层竖线在本行横线处收口，避免从 L 形变成 ├ */
+.eyc-param-expand-row-parent::after {
+  bottom: 50%;
+}
+/* 最后一行（或唯一一行）垂直线只到中间 */
+.eyc-param-expand-row:last-child::after {
+  bottom: 50%;
+}
+/* 第一行垂直线从顶部开始（连接箭头） */
+.eyc-param-expand-row:first-child::after {
+  top: 0;
+}
+.eyc-param-expand-mark {
+  color: var(--warning, #e6a817);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.eyc-param-expand-name {
+  color: var(--syntax-variable, #9cdcfe);
+  flex-shrink: 0;
+}
+.eyc-param-expand-colon {
+  color: var(--text-secondary, #858585);
+  flex-shrink: 0;
+}
+.eyc-param-expand-val {
+  color: var(--table-text, var(--syntax-operator, #d4d4d4));
+  flex: 1;
+  min-width: 60px;
+  height: 20px;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+  box-sizing: border-box;
+}
+
+.eyc-param-val-input {
+  width: 100%;
+  flex: 1;
+  min-width: 60px;
+  height: 20px;
+  line-height: 20px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--table-text, var(--syntax-operator, #d4d4d4));
+  font: inherit;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  vertical-align: baseline;
+  caret-color: var(--table-text, var(--syntax-operator, #d4d4d4));
+}
+
+/* 参数行内联编辑：与代码行一致，宽度随内容自适应，只显示光标不显示输入框 */
+.eyc-param-inline-edit-sizing {
+  min-width: 1ch;
+}
+.eyc-param-inline-edit-sizing .eyc-inline-edit-measure {
+  line-height: 20px;
+}
+.eyc-param-inline-edit-sizing .eyc-param-val-input {
+  grid-area: 1 / 1;
+  width: auto;
+  flex: none;
+  min-width: 0;
+}
+/* 压制全局无障碍焦点环（global.css 的 :focus-visible outline），与代码行输入框一致只显示光标 */
+.eyc-param-val-input:focus,
+.eyc-param-val-input:focus-visible {
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+/* 参数行的嵌套表达式 +/- 折叠按钮：与命令行折叠一致，定位到行号右侧的 gutter 区域 */
+.eyc-param-expr-fold {
+  position: absolute;
+  left: calc(54px - var(--eyc-param-expand-padding-left, 0px));
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.eyc-block-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ===== 默认配色 (ebackcolor1 暗色适配) ===== */
+.ebackcolor1 {
+  background: var(--table-bg-gradient, var(--table-bg, var(--bg-primary, #1e1e1e)));
+  color: var(--table-text, var(--text-primary, #d4d4d4));
+}
+
+/* ===== 声明表格 ===== */
+.eyc-decl-table {
+  border-collapse: collapse;
+  table-layout: auto;
+  border-width: 0;
+  margin-top: 4px;
+  width: 0px;
+}
+
+/* 行高与边框 — Rowheight */
+.Rowheight {
+  font-size: 12px;
+  line-height: 16px;
+  border: 1px solid var(--table-border, var(--border-color, #555));
+  color: var(--table-text, var(--text-primary, #d4d4d4));
+  background: var(--table-bg, var(--bg-primary, #1e1e1e));
+  white-space: nowrap;
+  padding: 4px 8px;
+}
+
+/* 表头行 */
+.eyc-hdr-row td {
+  cursor: default;
+}
+
+/* 数据行 */
+.eyc-data-row {
+  cursor: pointer;
+}
+.eyc-data-row:hover {
+  background: var(--table-row-hover-bg-gradient, var(--table-row-hover-bg, var(--bg-hover, rgba(255, 255, 255, 0.04))));
+}
+/* Rowheight 在 td 上定义了不透明默认背景，会盖住 tr 的 hover 色——此前只有着色类
+   背景透明的列（类型/备注）能看到 hover。行 hover 时放开 td 背景让 tr 色透出，
+   整行（含渐变主题）连续一致；选中/编辑态在下方以同特异性(0,3,1)后置规则覆盖。 */
+.eyc-data-row:hover > td.Rowheight {
+  background: transparent;
+}
+.eyc-data-row.eyc-line-selected {
+  background: var(--table-selection-bg-gradient, var(--table-selection-bg, var(--bg-selection, rgba(51, 153, 255, 0.2))));
+}
+.eyc-data-row.eyc-line-selected:hover {
+  background: var(--table-selection-bg-gradient, var(--table-selection-bg, var(--bg-selection, rgba(51, 153, 255, 0.2))));
+}
+/* Rowheight 在 td 上定义了默认背景；选中时需要覆盖到单元格本体，
+   否则会出现“只有行号区和右侧补色有选中背景”。 */
+.eyc-data-row.eyc-line-selected > td.Rowheight,
+.eyc-data-row.eyc-line-selected:hover > td.Rowheight {
+  background: var(--table-selection-bg-gradient, var(--table-selection-bg, var(--bg-selection, rgba(51, 153, 255, 0.2))));
+  /* 同焦点行：选中蓝底压上后边框对比度不足，朝文本色提亮保证网格线可见 */
+  border-color: color-mix(in srgb, var(--table-border, var(--border-color, #555)) 78%, var(--table-text, var(--text-primary, #d4d4d4)));
+}
+/* 保持表格本身不拉伸，只给选中行右侧空白区域补背景 */
+.eyc-data-row.eyc-line-selected > td:last-child {
+  position: relative;
+}
+.eyc-data-row.eyc-line-selected > td:last-child::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: -1px;
+  bottom: -1px;
+  width: 100vw;
+  background: var(--table-selection-bg-gradient, var(--table-selection-bg, var(--bg-selection, rgba(51, 153, 255, 0.2))));
+  pointer-events: none;
+}
+
+/* 正在编辑（获得焦点）的表格行：中性淡色「当前行」背景（区别于选中蓝，含 td 本体覆盖与右侧补色） */
+.eyc-data-row.eyc-line-editing,
+.eyc-data-row.eyc-line-editing:hover {
+  background: var(--eyc-current-line-bg);
+}
+.eyc-data-row.eyc-line-editing > td.Rowheight,
+.eyc-data-row.eyc-line-editing:hover > td.Rowheight {
+  background: var(--eyc-current-line-bg);
+  /* 焦点行底色（文本色 9% 的半透明白）压在边框上后与 --table-border 对比度不足，边框几乎看不见。
+     这里把该行单元格边框朝文本色提亮，保证深色主题下网格线依然清晰（用户报障 2026-07-21）。 */
+  border-color: color-mix(in srgb, var(--table-border, var(--border-color, #555)) 78%, var(--table-text, var(--text-primary, #d4d4d4)));
+}
+.eyc-data-row.eyc-line-editing > td:last-child {
+  position: relative;
+}
+.eyc-data-row.eyc-line-editing > td:last-child::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: -1px;
+  bottom: -1px;
+  width: 100vw;
+  background: var(--eyc-current-line-bg);
+  pointer-events: none;
+}
+
+/* ===== 表头背景色 ===== */
+/* 默认表头（子程序、常量、DLL等）— 灰绿色 */
+.eHeadercolor {
+  color: var(--table-header-text, var(--text-primary, #e0e0e0));
+  background: var(--table-header-bg-gradient, var(--table-header-bg, var(--bg-secondary, #2d3a2d)));
+}
+
+/* 变量表头 — 蓝色 */
+.eVariableheadcolor {
+  color: var(--table-header-text, var(--text-primary, #e0e0e0));
+  background: var(--table-header-bg-gradient, var(--table-header-bg, var(--bg-secondary, #263545)));
+}
+
+/* 程序集表头 — 深灰 */
+.eAssemblycolor {
+  color: var(--table-header-text, var(--text-primary, #e0e0e0));
+  background-color: var(--table-header-bg, var(--bg-secondary, #333333));
+}
+
+/* ===== 单元格文字颜色 ===== */
+
+/* 自定义类型/子程序名称 — 藏蓝色 */
+/* 程序集名/子程序名单元格 — 表格内容文本色（主题「表格文本」，回落编辑器文本色） */
+.eProcolor {
+  color: var(--table-cell-text, var(--table-text, var(--text-primary, #d4d4d4)));
+}
+
+/* 变量名 — 白色 */
+.Variablescolor {
+  color: var(--syntax-variable, #9cdcfe);
+}
+
+/* 声明表格内的名称列用「表格文本」色（语法「变量」色只用于代码行） */
+.eyc-decl-table .Variablescolor {
+  color: var(--table-cell-text, var(--table-text, var(--text-primary, #d4d4d4)));
+}
+
+/* 数据类型(整数型/文本型) — 蓝色 */
+.eTypecolor {
+  color: var(--syntax-type, #4fc1ff);
+}
+
+/* 勾选标记 — 红色加粗 */
+.eTickcolor {
+  color: var(--error, #f14c4c);
+  font-weight: bold;
+}
+
+/* 备注 — 绿色 */
+.Remarkscolor {
+  color: var(--syntax-comment, #6a9955);
+}
+
+/* 数组成员数 — 白色 */
+.eArraycolor {
+  color: var(--table-cell-text, var(--table-text, var(--text-primary, #d4d4d4)));
+}
+
+/* 常量值 — 青色 */
+.Constanttext {
+  color: var(--syntax-type, #4fc1ff);
+}
+
+/* 错误/未填写 — 红色 */
+.Wrongcolor {
+  color: var(--error, #f44747);
+}
+
+/* 声音/图片/常量等名称 — 藏蓝色 */
+.eOthercolor {
+  color: var(--syntax-keyword, #4fc1ff);
+}
+
+/* API颜色 — 橙红 */
+.eAPIcolor {
+  color: var(--syntax-string, #ce9178);
+}
+
+/* ===== 代码行着色 ===== */
+
+/* 代码行容器 */
+.eyc-code-line {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+  min-width: max-content;
+  min-height: 22px;
+  line-height: 22px;
+  padding: 0 8px 0 0;
+  cursor: text;
+  font-family: "Consolas", "Cascadia Mono", "MS Gothic", "NSimSun", "Microsoft YaHei UI", monospace;
+  font-size: 13px;
+  font-synthesis: none;
+  white-space: pre;
+}
+.eyc-code-line:hover {
+  background: var(--table-row-hover-bg-gradient, var(--table-row-hover-bg, var(--bg-hover, rgba(255, 255, 255, 0.04))));
+}
+
+/* 删除占位行在 hover 时保持删除红色，不被普通悬停背景覆盖 */
+.eyc-diff-deleted-placeholder .eyc-code-line,
+.eyc-diff-deleted-placeholder .eyc-code-line:hover {
+  background: var(--eyc-diff-deleted-placeholder-bg);
+}
+
+tr.eyc-diff-deleted-placeholder-row:hover,
+tr.eyc-diff-deleted-placeholder-row:hover > td.eyc-diff-deleted-placeholder-cell {
+  background: var(--eyc-diff-deleted-placeholder-bg);
+}
+
+/* 已选中行在 hover 时保持选中背景，不被悬停色覆盖 */
+.eyc-line-selected .eyc-code-line,
+.eyc-line-selected .eyc-code-line:hover {
+  background: var(--table-selection-bg-gradient, var(--table-selection-bg, var(--bg-selection, rgba(51, 153, 255, 0.2))));
+}
+
+/* 正在编辑的行：中性淡色「当前行」背景（区别于选中蓝），hover 时保持不被悬停色覆盖 */
+.eyc-line-editing .eyc-code-line,
+.eyc-line-editing .eyc-code-line:hover {
+  background: var(--eyc-current-line-bg);
+}
+
+.eyc-code-line.eyc-code-line-error .eyc-code-spans {
+  text-decoration: wavy underline var(--error, #f44747);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+}
+
+.eyc-code-spans {
+  display: inline-flex;
+  align-items: flex-start;
+}
+
+/* 代码行 token 统一以基线对齐，避免命令名与括号上下错位（不影响流程线段） */
+.eyc-code-spans > span:not(.eyc-flow-seg) {
+  display: inline;
+  vertical-align: baseline;
+  line-height: 22px;
+}
+
+/* 流程控制关键字 如果真/判断/循环 — 蓝色 */
+.comecolor {
+  color: var(--syntax-keyword, #4fc1ff);
+}
+
+/* 函数名（括号前的命令名） — 暗红 */
+.funccolor {
+  color: var(--syntax-function, #dcdcaa);
+}
+
+/* 普通代码行中的用户子程序引用 — 褐色 */
+.eyc-subrefcolor {
+  color: var(--syntax-string, #a0522d);
+}
+
+/* 可点击的命令名 */
+
+
+/* 无效命令 — 红色波浪线 */
+.eyc-cmd-invalid {
+  text-decoration: wavy underline var(--error, #f44747);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+}
+
+.eyc-cell-invalid {
+  text-decoration: wavy underline var(--error, #f44747);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+}
+
+/* 对象.方法 调用 — 函数族颜色 */
+.cometwolr {
+  color: var(--syntax-function, #dcdcaa);
+}
+
+/* 引号内的文字 — 青色 */
+.eTxtcolor {
+  color: var(--syntax-string, #4fc1ff);
+}
+
+/* 常量引用 #常量名 — 蓝色 */
+.conscolor {
+  color: var(--syntax-keyword, #4fc1ff);
+  font-weight: bold;
+}
+
+/* 颜色字面量（#hex / #名色 / rgb()）行内色块预览 */
+.eyc-color-swatch {
+  display: inline-block;
+  width: 0.72em;
+  height: 0.72em;
+  margin-right: 3px;
+  vertical-align: -0.08em;
+  border: 1px solid rgba(128, 128, 128, 0.6);
+  border-radius: 2px;
+}
+
+/* 标点符号（括号/运算符/逗号）— 与 conscolor 同色但不加粗，
+   保持与编辑态 input 中的括号/运算符粗细一致，避免进入/离开编辑态时抖动变粗变细 */
+.eyc-punct {
+  color: var(--syntax-operator, var(--syntax-keyword, #4fc1ff));
+  font-weight: normal;
+}
+
+/* 树形线条 */
+.eTreeLine {
+  color: transparent;
+  user-select: none;
+}
+
+/* ===== 行内编辑输入框 ===== */
+.eyc-code-line.eyc-code-line-editing {
+  display: flex;
+  min-width: max-content;
+  /* 用 flex-start 让流程线段与输入框上边缘对齐，避免基线对齐导致进入编辑态时文字整体下移 */
+  align-items: flex-start;
+  /* 规避 Chromium 在合成层内偶发 caret 不刷新的问题 */
+  transform: none;
+}
+
+.eyc-inline-input {
+  flex: 0 0 auto;
+  min-width: 1ch;
+  height: 22px;
+  line-height: 22px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  color: var(--table-text, var(--text-primary, #d4d4d4));
+  font-family: "Consolas", "Cascadia Mono", "MS Gothic", "NSimSun", "Microsoft YaHei UI", monospace;
+  font-size: 13px;
+  font-synthesis: none;
+  outline: none;
+  box-sizing: border-box;
+  caret-color: var(--table-text, var(--text-primary, #d4d4d4));
+  -webkit-appearance: none;
+  appearance: none;
+  box-shadow: none;
+}
+.eyc-inline-input:focus,
+.eyc-inline-input:focus-visible {
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.eyc-cell-align-center {
+  text-align: center;
+}
+
+.eyc-inline-edit-sizing {
+  position: relative;
+  display: inline-grid;
+}
+
+.eyc-code-inline-edit-sizing {
+  min-width: 1ch;
+}
+
+.eyc-inline-edit-measure {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  white-space: pre;
+  font: inherit;
+  padding: 0;
+}
+
+.eyc-code-inline-edit-measure {
+  font-family: "Consolas", "Cascadia Mono", "MS Gothic", "NSimSun", "Microsoft YaHei UI", monospace;
+  font-size: 13px;
+  line-height: 22px;
+  margin: 0;
+}
+
+.eyc-inline-input,
+.eyc-cell-input {
+  grid-area: 1 / 1;
+}
+
+/* 单元格内编辑 — 透明融入 */
+.eyc-cell-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  caret-color: var(--table-text, var(--text-primary, #d4d4d4));
+  -webkit-appearance: none;
+  appearance: none;
+  box-shadow: none;
+}
+.eyc-cell-input:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+.eyc-cell-input.eyc-input-invalid {
+  text-decoration: wavy underline var(--error, #f44747);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+}
+
+/* ===== 自动补全弹窗 ===== */
+.eyc-ac-container {
+  position: fixed;
+  left: var(--eyc-ac-left, 0px);
+  top: var(--eyc-ac-top, 0px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+}
+
+.eyc-ac-popup {
+  min-width: 180px;
+  max-width: 300px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg-secondary, #252526);
+  border: 1px solid var(--table-border, var(--border-color, #454545));
+  border-radius: 3px;
+  box-shadow: 0 4px 12px var(--menu-shadow, rgba(0, 0, 0, 0.5));
+  font-family: Consolas, "Microsoft YaHei", monospace;
+  font-size: 13px;
+}
+
+.eyc-ac-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+  font-weight: bold;
+  border-radius: 0;
+  background: transparent;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.eyc-ac-icon-func   { color: var(--syntax-function, #8cb4ff); }
+.eyc-ac-icon-widget { color: var(--success, #7dd67f); }
+.eyc-ac-icon-event  { color: var(--warning, #f2c14e); }
+.eyc-ac-icon-prop   { color: var(--syntax-type, #b694f8); }
+.eyc-ac-icon-field  { color: var(--syntax-variable, #86d993); }
+.eyc-ac-icon-dll    { color: var(--syntax-keyword, #9ec5ff); }
+.eyc-ac-icon-resource { color: var(--info, #7ec8ff); }
+.eyc-ac-icon-const  { color: var(--syntax-number, #6bb8ff); }
+.eyc-ac-icon-type   { color: var(--syntax-type, #59c4b5); }
+.eyc-ac-icon-flow   { color: var(--error, #f28b93); }
+
+.eyc-ac-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.eyc-ac-item-active {
+  background: var(--bg-selection, #04395e);
+  color: var(--text-primary, #fff);
+}
+
+.eyc-ac-item:hover {
+  background: var(--table-row-hover-bg-gradient, var(--table-row-hover-bg, #2a2d2e));
+}
+.eyc-ac-item-active:hover {
+  background: var(--bg-selection, #04395e);
+}
+
+.eyc-ac-item-more {
+  border-top: 1px dashed var(--table-border, var(--border-color, #3c3c3c));
+}
+
+.eyc-ac-item-more .eyc-ac-name {
+  color: var(--syntax-variable, #9cdcfe);
+  font-style: italic;
+}
+
+.eyc-ac-name {
+  color: var(--syntax-function, #dcdcaa);
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.eyc-ac-return {
+  color: var(--syntax-type, #4fc1ff);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.eyc-ac-source {
+  margin-left: auto;
+  padding: 0 6px;
+  height: 16px;
+  line-height: 16px;
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--syntax-variable, #9cdcfe);
+  background: color-mix(in srgb, var(--syntax-keyword, var(--accent, var(--flow-line-main))) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--syntax-keyword, var(--accent, var(--flow-line-main))) 35%, transparent);
+  flex-shrink: 0;
+}
+
+/* 右侧详情弹窗 */
+.eyc-ac-detail {
+  min-width: 300px;
+  max-width: 460px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-left: 2px;
+  background: var(--bg-secondary, #252526);
+  border: 1px solid var(--table-border, var(--border-color, #454545));
+  border-radius: 3px;
+  box-shadow: 0 4px 12px var(--menu-shadow, rgba(0, 0, 0, 0.5));
+  font-family: Consolas, "Microsoft YaHei", monospace;
+  font-size: 12px;
+  padding: 8px 10px;
+  color: var(--text-primary, #ccc);
+  line-height: 1.7;
+}
+
+.eyc-ac-detail-call {
+  color: var(--syntax-function, #dcdcaa);
+  margin-bottom: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.eyc-ac-detail-label {
+  color: var(--text-secondary, #808080);
+}
+
+.eyc-ac-detail-eng {
+  color: var(--syntax-variable, #9cdcfe);
+  margin-bottom: 4px;
+}
+
+.eyc-ac-detail-desc {
+  color: var(--text-primary, #ccc);
+  margin-bottom: 6px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.eyc-ac-detail-params {
+  border-top: 1px solid var(--table-border, var(--border-color, #3c3c3c));
+  padding-top: 4px;
+}
+
+.eyc-ac-detail-param {
+  color: var(--text-primary, #ccc);
+  font-size: 11px;
+  padding: 2px 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.eyc-ac-detail-param-head {
+  color: var(--syntax-variable, #9cdcfe);
+}
+
+.eyc-ac-detail-param-desc {
+  color: var(--text-secondary, #b0b0b0);
+}
+
+.eyc-resource-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--dialog-shadow, rgba(0, 0, 0, 0.45));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2500;
+  animation: eyc-resource-preview-fade-in 280ms ease-out;
+}
+
+.eyc-resource-preview-modal {
+  width: min(900px, 92vw);
+  max-height: 86vh;
+  background: var(--bg-secondary, #1f2329);
+  border: 1px solid var(--table-border, var(--border-color, #3b4048));
+  border-radius: 8px;
+  box-shadow: 0 14px 36px var(--dialog-shadow, rgba(0, 0, 0, 0.42));
+  display: flex;
+  flex-direction: column;
+  animation: eyc-resource-preview-modal-in 340ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: center top;
+}
+
+
+@keyframes eyc-resource-preview-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes eyc-resource-preview-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.eyc-resource-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--table-border, var(--border-color, #343a42));
+}
+
+.eyc-resource-preview-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #d8dde6);
+}
+
+.eyc-resource-preview-close {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--table-border, var(--border-color, #4a5160));
+  background: var(--bg-tertiary, #2a3038);
+  border-radius: 4px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.eyc-resource-preview-close:hover {
+  background: var(--bg-hover, #323a44);
+}
+
+.eyc-resource-preview-close-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+  filter: brightness(0) invert(1);
+  opacity: 0.92;
+  transition: opacity 0.15s ease;
+}
+
+.eyc-resource-preview-close:hover .eyc-resource-preview-close-icon {
+  opacity: 1;
+}
+
+.eyc-resource-preview-meta {
+  padding: 10px 14px;
+  color: var(--text-secondary, #aeb7c6);
+  font-size: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 6px 12px;
+  border-bottom: 1px solid var(--table-border, var(--border-color, #343a42));
+}
+
+.eyc-resource-preview-path {
+  grid-column: 1 / -1;
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.eyc-resource-preview-body {
+  padding: 14px;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 260px;
+}
+
+.eyc-resource-preview-image {
+  max-width: 100%;
+  max-height: 58vh;
+  object-fit: contain;
+  border: 1px solid var(--table-border, var(--border-color, #3e4551));
+  border-radius: 6px;
+  background: var(--bg-primary, #161a20);
+}
+
+.eyc-resource-preview-video {
+  width: min(800px, 100%);
+  max-height: 58vh;
+  border: 1px solid var(--table-border, var(--border-color, #3e4551));
+  border-radius: 6px;
+  background: var(--bg-primary, #101317);
+}
+
+.eyc-resource-preview-audio {
+  width: min(680px, 100%);
+}
+
+.eyc-resource-preview-empty {
+  color: var(--text-secondary, #9ca7b8);
+  font-size: 13px;
+}
+
+.eyc-resource-preview-footer {
+  border-top: 1px solid var(--table-border, var(--border-color, #343a42));
+  padding: 10px 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.eyc-resource-preview-replace {
+  border: 1px solid var(--border-focus, #4f5f79);
+  background: var(--accent, #2c3b55);
+  color: var(--menu-text-on-accent, #dbe6ff);
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.eyc-resource-preview-replace:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* 问题定位高亮闪烁 — 用 box-shadow 实现，不受 diff 背景 !important 影响。
+   只在叶子层（代码行/表格单元格）闪，行容器自身不闪：容器若同时闪一层，
+   背景透明的格（类型/备注）会透出容器层叠成双层更深、不透明格只有单层更浅，
+   同一行深浅不一（半透明 box-shadow 叠加）。 */
+@keyframes problem-flash {
+  0%, 100% { box-shadow: inset 0 0 0 0 transparent; }
+  50% { box-shadow: inset 0 0 0 2000px color-mix(in srgb, var(--warning, #cca700) 30%, transparent); }
+}
+.highlight-flash .eyc-code-line,
+.highlight-flash > td {
+  animation: problem-flash 0.5s ease 3 !important;
+}
+
+.eyc-editor-context-menu {
+  position: fixed;
+  left: var(--eyc-context-menu-left, 0px);
+  top: var(--eyc-context-menu-top, 0px);
+  z-index: 80;
+  min-width: 148px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border-color, #3c3c3c);
+  background: var(--menu-bg, var(--bg-secondary, #252526));
+  box-shadow: 0 8px 20px var(--menu-shadow, rgba(0, 0, 0, 0.45));
+}
+
+.eyc-editor-context-menu-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--menu-text, var(--text-primary, #d4d4d4));
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 260px;
+}
+
+.eyc-editor-context-menu-item-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.eyc-editor-context-menu-item-shortcut {
+  flex: 0 0 auto;
+  color: var(--menu-text-secondary, color-mix(in srgb, var(--menu-text, var(--text-primary, #d4d4d4)) 70%, transparent));
+  text-align: right;
+  white-space: nowrap;
+}
+
+.eyc-editor-context-menu-item:hover:not(:disabled) {
+  background: var(--menu-hover, color-mix(in srgb, var(--accent, #4f8cff) 24%, transparent));
+}
+
+.eyc-editor-context-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.eyc-editor-context-menu-sep {
+  height: 1px;
+  margin: 2px 4px;
+  background: var(--menu-divider, color-mix(in srgb, var(--border-color, #3c3c3c) 72%, transparent));
+}
+
+/* ===== 右侧变量汇总面板 ===== */
+.eyc-var-panel {
+  flex: none;
+  width: 232px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border-color, #3c3c3c);
+  background: var(--bg-secondary, #252526);
+  overflow: hidden;
+}
+
+.eyc-var-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-bottom: 1px solid var(--border-color, #3c3c3c);
+}
+
+.eyc-var-panel-search {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text-primary, #ddd);
+  background: var(--bg-primary, #1e1e1e);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 3px;
+  outline: none;
+}
+
+.eyc-var-panel-search:focus {
+  border-color: var(--accent-color, #0e639c);
+}
+
+.eyc-var-panel-toggle {
+  flex: none;
+  width: 22px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary, #999);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.eyc-var-panel-toggle:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #ddd);
+}
+
+.eyc-var-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+}
+
+.eyc-var-group-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #e8e8e8);
+}
+
+.eyc-var-group-head:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+}
+
+.eyc-var-group-arrow {
+  flex: none;
+  width: 12px;
+  color: var(--accent-color, #569cd6);
+  font-size: 10px;
+}
+
+.eyc-var-group-title {
+  white-space: nowrap;
+}
+
+.eyc-var-group-count {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-secondary, #888);
+}
+
+.eyc-var-group-empty {
+  padding: 2px 8px 2px 24px;
+  font-size: 11px;
+  color: var(--text-secondary, #666);
+}
+
+.eyc-var-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 20px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.eyc-var-item:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
+
+.eyc-var-item-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #1e1e1e;
+  background: #d7ba7d;
+}
+
+.eyc-var-item-icon-int { background: #d7ba7d; }
+.eyc-var-item-icon-bool { background: #e8735c; }
+.eyc-var-item-icon-text { background: #6db3f2; }
+.eyc-var-item-icon-bin { background: #4ec9b0; }
+.eyc-var-item-icon-float { background: #c586c0; }
+.eyc-var-item-icon-date { background: #6a9955; color: #f0f0f0; }
+.eyc-var-item-icon-ptr { background: #dcdcaa; }
+.eyc-var-item-icon-variant { background: #9e9e9e; }
+.eyc-var-item-icon-custom { background: #71b356; color: #f0f0f0; }
+
+.eyc-var-item-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-primary, #ddd);
+}
+
+.eyc-var-item-type {
+  flex: none;
+  margin-left: auto;
+  max-width: 96px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--text-secondary, #777);
+}
+
+.eyc-var-panel-collapsed {
+  flex: none;
+  width: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 0;
+  border: 0;
+  border-left: 1px solid var(--border-color, #3c3c3c);
+  background: var(--bg-secondary, #252526);
+  color: var(--text-secondary, #999);
+  cursor: pointer;
+}
+
+.eyc-var-panel-collapsed:hover {
+  color: var(--text-primary, #ddd);
+}
+
+.eyc-var-panel-collapsed-label {
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+  font-size: 12px;
+}
+
+.eyc-var-group-head-current .eyc-var-group-title {
+  color: var(--accent-color, #569cd6);
+}
+
+/* 删除占位行内展示的被删原文 */
+.eyc-diff-deleted-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  color: color-mix(in srgb, var(--eyc-diff-deleted-bar) 82%, var(--text-primary, #ddd));
+  text-decoration: line-through;
+  opacity: 0.85;
+}
+
+.eyc-diff-deleted-placeholder-cell {
+  padding: 0 6px;
+}
+
+/* 局部变量表与上方的子程序表（含参数行）之间留几像素间距，视觉分组更清晰 */
+.eyc-localvar-block {
+  margin-top: 4px;
+}
+
+/* ===== 悬停命令说明窗（照易语言米黄 tooltip） ===== */
+.eyc-cmd-hover-tip {
+  position: fixed;
+  left: var(--eyc-cmd-hover-left, 0);
+  top: var(--eyc-cmd-hover-top, 0);
+  z-index: 240;
+  max-width: 560px;
+  background: #ffffe1;
+  color: #1a1a1a;
+  border: 1px solid #8a8a6a;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  pointer-events: none;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.eyc-cmd-hover-sig .eyc-cmd-hover-type {
+  color: #0b39c9;
+}
+
+.eyc-cmd-hover-sig .eyc-cmd-hover-name {
+  font-weight: 700;
+}
+
+.eyc-cmd-hover-sig .eyc-cmd-hover-params {
+  color: #333;
+}
+
+.eyc-cmd-hover-sig .eyc-cmd-hover-lib {
+  color: #8a6d3b;
+}
+
+.eyc-cmd-hover-desc {
+  margin-top: 3px;
+  border-top: 1px dashed #b9b98f;
+  padding-top: 3px;
+}
+
+/* 数字字面量 — 主题「数字」色 */
+.eyc-numcolor {
+  color: var(--syntax-number, #b5cea8);
+}
+
+/* ===== 语法文字渐变（主题分组渐变启用时生效） =====
+   启用时 JS 注入 --syntax-*-gradient 与 --syntax-*-fill: transparent，
+   文字经 background-clip: text 显示双色渐变；未启用回落 currentColor 零成本。 */
+.funccolor {
+  background-image: var(--syntax-function-gradient, none);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--syntax-function-fill, currentColor);
+}
+
+.comecolor {
+  background-image: var(--syntax-keyword-gradient, none);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--syntax-keyword-fill, currentColor);
+}
+
+.conscolor {
+  background-image: var(--syntax-keyword-gradient, none);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--syntax-keyword-fill, currentColor);
+}
+
+.eyc-punct {
+  background-image: var(--syntax-operator-gradient, none);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--syntax-operator-fill, currentColor);
+}
+
+.eTxtcolor {
+  background-image: var(--syntax-string-gradient, none);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--syntax-string-fill, currentColor);
+}
+
+.eyc-numcolor {
+  background-image: var(--syntax-number-gradient, none);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--syntax-number-fill, currentColor);
+}
+
+.Remarkscolor {
+  background-image: var(--syntax-comment-gradient, none);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--syntax-comment-fill, currentColor);
+}
+
+.eTypecolor {
+  background-image: var(--syntax-type-gradient, none);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--syntax-type-fill, currentColor);
+}
+
+.cometwolr {
+  background-image: var(--syntax-function-gradient, none);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--syntax-function-fill, currentColor);
+}
+
+/* 代码行内的变量（含引用）走「变量」渐变；表格内名称列不参与（表格文本独立配置） */
+.eyc-code-line .Variablescolor {
+  background-image: var(--syntax-variable-gradient, none);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--syntax-variable-fill, currentColor);
+}
+
+/* AI diff 行里的 数据类型/备注 列：这两列作为 <td> 挂着上面的渐变字技术，
+   background-clip: text 会把**单元格自己的所有背景**（含 diff 的绿/蓝底色）一并剪进字形，
+   整格底色于是消失（其余列正常，正好只缺这两列）。diff 行内退回纯色文字、恢复正常裁剪，
+   行底色即完整；选中行没有此问题是因为它用 background 简写整组重置了这些长属性。 */
+tr.eyc-data-row.eyc-diff-highlight > td.eTypecolor,
+tr.eyc-data-row.eyc-diff-highlight > td.Remarkscolor {
+  background-image: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+/* ===== 长文本常量编辑弹窗（对齐易语言「请输入文本：」对话框）===== */
+.eyc-longtext-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+.eyc-longtext-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(760px, 82vw);
+  height: min(560px, 76vh);
+  padding: 12px;
+  border: 1px solid var(--border-color, #555);
+  border-radius: 4px;
+  background: var(--bg-secondary, #252526);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+.eyc-longtext-title {
+  font-size: 13px;
+  color: var(--text-primary, #ddd);
+  flex-shrink: 0;
+}
+.eyc-longtext-area {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color, #555);
+  border-radius: 2px;
+  background: var(--bg-primary, #1e1e1e);
+  color: var(--text-primary, #ddd);
+  font-family: var(--eyc-editor-font-family, Consolas, monospace);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: auto;
+}
+.eyc-longtext-area:focus {
+  outline: 1px solid var(--accent-color, #0a84ff);
+}
+.eyc-longtext-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.eyc-longtext-spacer { flex: 1; }
+.eyc-longtext-btn {
+  min-width: 92px;
+  padding: 5px 14px;
+  border: 1px solid var(--border-color, #555);
+  border-radius: 2px;
+  background: var(--bg-tertiary, #333);
+  color: var(--text-primary, #ddd);
+  font-size: 12px;
+  cursor: pointer;
+}
+.eyc-longtext-btn:hover {
+  background: var(--bg-hover, #3a3a3a);
+}
